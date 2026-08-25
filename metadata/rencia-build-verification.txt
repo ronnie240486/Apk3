@@ -1,4 +1,5 @@
 APK: build/LUMI3.9-rencia.apk
+sha256=51dc0ad9c40a69aa5a14884505899f2dcc6144d457a9a399b9ef64490364c9ac
 size_bytes=28288763
 
 Verifies
@@ -11,10 +12,11 @@ Number of signers: 1
 WARNING: META-INF/services/kotlinx.coroutines.CoroutineExceptionHandler not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
 WARNING: META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
 
-certificate:
-Signer #1 certificate DN: CN=Lumi Rencia, OU=Local Build, O=Private, L=Unknown, ST=Unknown, C=BR
-Signer #1 certificate SHA-256 digest: b6d2388b8deaf5c379e220329f20975c07309110b9f48f42919fce740d7c6b64
-Signer #1 certificate SHA-1 digest: 7e8882fc5c2dd5b53dccb30985fc7a11cfe4cde3
-Signer #1 certificate MD5 digest: 2d92d8f3d3dce16ec7b91bf55b880250
-WARNING: META-INF/services/kotlinx.coroutines.CoroutineExceptionHandler not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
+DEX method declarations:
+checkUpdate(Context)
+pollRemoteCommands(Context)
+DEX method invocations:
+RenciaIntegration$Worker -> checkUpdate(Context)
+RenciaIntegration$Worker -> pollRemoteCommands(Context)
+
+Crash fix: NoSuchMethodError addressed by rebuilding from the corrected smali tree.

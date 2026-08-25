@@ -113,7 +113,13 @@ O contrato foi consolidado em [`docs_rencia_contract.md`](docs_rencia_contract.m
 
 A árvore foi decodificada com Apktool preservando os recursos brutos, recebeu apenas o patch smali e o asset do PDF, foi reempacotada, alinhada e assinada com uma chave local separada da assinatura original. A build final passou na verificação v1, v2 e v3 do Android. A verificação v4 e SourceStamp não foram geradas pela ferramenta disponível. O manifesto manteve o pacote `com.lumi.ar`, a versão `3.9`, o `minSdk 21` e o `targetSdk 36`.
 
-O hash SHA-256 da nova build está em [`metadata/rencia-apk-sha256.txt`](metadata/rencia-apk-sha256.txt). A chave privada de assinatura não está no repositório. Como não há emulador ou dispositivo Android conectado nesta sessão, a validação funcional de login, resposta do servidor, bloqueio, failover e reprodução deve ser realizada em um aparelho de teste autorizado.
+O hash SHA-256 da build corrigida está em [`metadata/rencia-apk-sha256.txt`](metadata/rencia-apk-sha256.txt). A chave privada de assinatura não está no repositório. Como não há emulador ou dispositivo Android conectado nesta sessão, a validação funcional de login, resposta do servidor, bloqueio, failover e reprodução deve ser realizada em um aparelho de teste autorizado.
+
+## 12. Correção do crash reportado
+
+O screenshot enviado pelo usuário mostrou `java.lang.NoSuchMethodError` para `RenciaIntegration.checkUpdate(Context)` dentro de `RenciaIntegration$Worker.run()`. A investigação confirmou que a build anterior continha as invocações no worker, mas não continha as declarações dos métodos no mesmo DEX; isso é uma incompatibilidade de empacotamento, não uma falha de rede.
+
+A correção inseriu `checkUpdate(Context)` e `pollRemoteCommands(Context)` na classe `RenciaIntegration` da árvore efetivamente usada pelo Apktool. A build corrigida foi reempacotada, assinada, reaberta com Apktool e verificada diretamente: ambos os métodos aparecem como declarações e como invocações no DEX. O novo SHA-256 é `51dc0ad9c40a69aa5a14884505899f2dcc6144d457a9a399b9ef64490364c9ac`.
 
 ## Referências
 

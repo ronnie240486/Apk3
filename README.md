@@ -36,6 +36,10 @@ O `appId` padrão do bridge é `nexus` e pode ser substituído antes da instala�
 
 A assinatura da build é diferente da assinatura original. O APK original não foi incluído na árvore pública; a chave privada usada na assinatura local também permanece fora do repositório.
 
+### Correção da build
+
+Uma versão anterior chamava `checkUpdate(Context)` e `pollRemoteCommands(Context)` pelo worker, mas esses métodos não estavam presentes no mesmo DEX, gerando `NoSuchMethodError` no aparelho. A build atual contém as duas declarações e as chamadas correspondentes no DEX; a correção foi verificada reabrindo o APK final com Apktool. O SHA-256 atualizado está em `metadata/rencia-apk-sha256.txt`.
+
 ## Achados técnicos resumidos
 
 A aplicação se comporta como um cliente IPTV/streaming para TV e dispositivos Android, com telas de canais ao vivo, filmes, séries, EPG, reprodução interna/externa, playlists M3U e legendas. A interface Retrofit declara chamadas para `player_api.php` e `xmltv.php`, com parâmetros `username`, `password`, `stream_id`, `series_id` e `vod_id`.
