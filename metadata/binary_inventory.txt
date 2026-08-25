@@ -1,0 +1,64 @@
+== APK ==
+/home/ubuntu/upload/LUMI3.9.apk: Zip archive data, at least v1.0 to extract, compression method=store
+size=28112553 bytes mode=600
+79f52983091a2601311a69c9c1b2f45ec21cffc0d5bbdfc3c7ba2bdf83aeb918  /home/ubuntu/upload/LUMI3.9.apk
+== ZIP resumo ==
+Archive:  /home/ubuntu/upload/LUMI3.9.apk
+Zip file size: 28112553 bytes, number of entries: 1717
+== assinatura v1 ==
+Signer #1:
+
+Certificate #1:
+Owner: C=BR, ST=SP, L=SÃO PAULO, O=ATV REBRANDS APKS, OU=ATV REBRANDS APKS, CN=ATV REBRANDS APKS
+Issuer: C=BR, ST=SP, L=SÃO PAULO, O=ATV REBRANDS APKS, OU=ATV REBRANDS APKS, CN=ATV REBRANDS APKS
+Serial number: 1941b060b26
+Valid from: Tue Dec 31 04:42:47 UTC 2024 until: Fri Dec 31 04:42:47 UTC 2123
+Certificate fingerprints:
+	 SHA1: 81:A2:A6:69:07:49:3D:03:6A:1E:32:EF:99:86:E9:97:10:80:9E:23
+	 SHA256: 19:AE:74:51:24:BA:0E:4A:EC:C4:E9:A0:18:3C:64:EC:CC:03:0F:47:C8:C1:17:D2:2E:6C:56:21:6B:66:B8:91
+Signature algorithm name: SHA512withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 1
+
+== hashes dos artefatos ==
+ATV.RSA fc121332fb762f3ac684ec3533dc57df212115f98eeb69ad456c2c738f65aba2  /home/ubuntu/lumi39_analysis/raw/META-INF/ATV.RSA
+ATV.SF 2ce2048ece3a74fde7cb0acf5491406124e4f3eddd026791249fec2f901f389e  /home/ubuntu/lumi39_analysis/raw/META-INF/ATV.SF
+MANIFEST.MF 0242fbcb501a889d0bc18275080c200ef59b8916917e56c4026d3f2b333db039  /home/ubuntu/lumi39_analysis/raw/META-INF/MANIFEST.MF
+== símbolos e notas ELF ==
+-- lib/arm64-v8a/libffmpegJNI.so --
+/home/ubuntu/lumi39_analysis/raw/lib/arm64-v8a/libffmpegJNI.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=fcbcb588fb2e02d8e969589a1deac90c900ab725, stripped
+-- lib/arm64-v8a/libhax.so --
+/home/ubuntu/lumi39_analysis/raw/lib/arm64-v8a/libhax.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=9502e2fe9bc47c9aad15defc1cc11a53f3ad14a3, stripped
+-- lib/arm64-v8a/libpl_droidsonroids_gif.so --
+/home/ubuntu/lumi39_analysis/raw/lib/arm64-v8a/libpl_droidsonroids_gif.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=af153094f7acbf371f7e6035ed8796b3da9080ef, stripped
+-- lib/arm64-v8a/librealm-jni.so --
+/home/ubuntu/lumi39_analysis/raw/lib/arm64-v8a/librealm-jni.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=66bd01db16a296f52810d5642ecfb49e652ae9a9, stripped
+-- lib/armeabi-v7a/libffmpegJNI.so --
+/home/ubuntu/lumi39_analysis/raw/lib/armeabi-v7a/libffmpegJNI.so: ELF 32-bit LSB shared object, ARM, EABI5 version 1 (SYSV), dynamically linked, BuildID[sha1]=bcfc2679aa083b8f2a785d3dcfdc1aba0fd013ce, stripped
+-- lib/armeabi-v7a/libhax.so --
+/home/ubuntu/lumi39_analysis/raw/lib/armeabi-v7a/libhax.so: ELF 32-bit LSB shared object, ARM, EABI5 version 1 (SYSV), dynamically linked, BuildID[sha1]=5bb247bfc3b5768def8d9a9c546e9a8d66e61deb, stripped
+-- lib/armeabi-v7a/libpl_droidsonroids_gif.so --
+/home/ubuntu/lumi39_analysis/raw/lib/armeabi-v7a/libpl_droidsonroids_gif.so: ELF 32-bit LSB shared object, ARM, EABI5 version 1 (SYSV), dynamically linked, BuildID[sha1]=0914cb5f82fff46cae910f6264d2539a9879484d, stripped
+-- lib/armeabi-v7a/librealm-jni.so --
+/home/ubuntu/lumi39_analysis/raw/lib/armeabi-v7a/librealm-jni.so: ELF 32-bit LSB shared object, ARM, EABI5 version 1 (SYSV), dynamically linked, BuildID[sha1]=307bf63e0705c82f63e0fae556f9ee7723de08c6, stripped
+-- lib/x86_64/libffmpegJNI.so --
+/home/ubuntu/lumi39_analysis/raw/lib/x86_64/libffmpegJNI.so: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=472cb9d367248ee8aa97066525627afcd321ba7e, stripped
+-- lib/x86_64/libhax.so --
+/home/ubuntu/lumi39_analysis/raw/lib/x86_64/libhax.so: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=9d42135db009fa1e470a6c8c77f5b355c6a43cc3, stripped
+-- lib/x86_64/libpl_droidsonroids_gif.so --
+/home/ubuntu/lumi39_analysis/raw/lib/x86_64/libpl_droidsonroids_gif.so: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=6ed3b96cc4d647f1416bb95e9b39908c2b279b33, stripped
+-- lib/x86_64/librealm-jni.so --
+/home/ubuntu/lumi39_analysis/raw/lib/x86_64/librealm-jni.so: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=a395e13b8ae2b9414ba900124aa0d8075ec6ec31, stripped
+== strings relevantes das bibliotecas ==
+-- lib/arm64-v8a/libffmpegJNI.so --
+-- lib/arm64-v8a/libhax.so --
+-- lib/arm64-v8a/libpl_droidsonroids_gif.so --
+-- lib/arm64-v8a/librealm-jni.so --
+-- lib/armeabi-v7a/libffmpegJNI.so --
+-- lib/armeabi-v7a/libhax.so --
+-- lib/armeabi-v7a/libpl_droidsonroids_gif.so --
+-- lib/armeabi-v7a/librealm-jni.so --
+-- lib/x86_64/libffmpegJNI.so --
+-- lib/x86_64/libhax.so --
+-- lib/x86_64/libpl_droidsonroids_gif.so --
+-- lib/x86_64/librealm-jni.so --

@@ -1,0 +1,15 @@
+package androidx.core.util;
+
+/* JADX INFO: compiled from: AndroidXConsumer.kt */
+/* JADX INFO: loaded from: classes3.dex */
+@kotlin.Metadata(d1 = {"\u0000\u000e\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\u001a\u001c\u0010\u0000\u001a\b\u0012\u0004\u0012\u0002H\u00020\u0001\"\u0004\b\u0000\u0010\u0002*\b\u0012\u0004\u0012\u0002H\u00020\u0003¨\u0006\u0004"}, d2 = {"asAndroidXConsumer", "Landroidx/core/util/Consumer;", "T", "Lkotlin/coroutines/Continuation;", "core-ktx_release"}, k = 2, mv = {1, 7, 1}, xi = 48)
+public final class AndroidXConsumerKt {
+    @org.jetbrains.annotations.NotNull
+    public static final <T> androidx.core.util.Consumer<T> asAndroidXConsumer(@org.jetbrains.annotations.NotNull kotlin.coroutines.Continuation<? super T> r1) {
+            java.lang.String r0 = "<this>"
+            kotlin.jvm.internal.Intrinsics.checkNotNullParameter(r1, r0)
+            androidx.core.util.AndroidXContinuationConsumer r0 = new androidx.core.util.AndroidXContinuationConsumer
+            r0.<init>(r1)
+            return r0
+    }
+}

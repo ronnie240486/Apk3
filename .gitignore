@@ -1,0 +1,36 @@
+# Artefatos locais da análise
+*.apk
+*.aab
+*.apks
+*.xapk
+*.log
+*.tmp
+*.bak
+
+# Dados de execução e sessão
+shared_prefs/
+*.realm
+*.realm.lock
+*.realm.management/
+userdata/
+session/
+tokens/
+
+# Saídas e caches de ferramentas
+.gradle/
+build/
+out/
+.jadx/
+
+# Segredos e arquivos de ambiente
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# Metadados locais do GitHub
+.github-local/

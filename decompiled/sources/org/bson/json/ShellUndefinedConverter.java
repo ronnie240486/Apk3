@@ -1,0 +1,26 @@
+package org.bson.json;
+
+/* JADX INFO: loaded from: classes3.dex */
+class ShellUndefinedConverter implements org.bson.json.Converter<org.bson.BsonUndefined> {
+    public ShellUndefinedConverter() {
+            r0 = this;
+            r0.<init>()
+            return
+    }
+
+    @Override // org.bson.json.Converter
+    public /* bridge */ /* synthetic */ void convert(org.bson.BsonUndefined r1, org.bson.json.StrictJsonWriter r2) {
+            r0 = this;
+            org.bson.BsonUndefined r1 = (org.bson.BsonUndefined) r1
+            r0.convert2(r1, r2)
+            return
+    }
+
+    /* JADX INFO: renamed from: convert, reason: avoid collision after fix types in other method */
+    public void convert2(org.bson.BsonUndefined r1, org.bson.json.StrictJsonWriter r2) {
+            r0 = this;
+            java.lang.String r1 = "undefined"
+            r2.writeRaw(r1)
+            return
+    }
+}

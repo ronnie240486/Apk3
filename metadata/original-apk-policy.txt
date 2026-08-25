@@ -1,0 +1,1 @@
+The original APK is intentionally not included in this repository. It remains at /home/ubuntu/upload/LUMI3.9.apk for local reference only.
