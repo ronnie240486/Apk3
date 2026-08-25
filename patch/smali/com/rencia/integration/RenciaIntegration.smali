@@ -262,6 +262,56 @@
     return v0
 .end method
 
+.method public static attachLogin(Landroid/app/Activity;)V
+    .locals 11
+    const v0, 0x7f0b03de
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v0
+    if-eqz v0, :cond_0
+    check-cast v0, Landroid/widget/TextView;
+    invoke-static {p0}, Lcom/rencia/integration/RenciaIntegration;->getMacForWorker(Landroid/content/Context;)Ljava/lang/String;
+    move-result-object v1
+    new-instance v2, Ljava/lang/StringBuilder;
+    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
+    const-string v3, "MAC: "
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v2, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result-object v1
+    invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+    :cond_0
+    const v0, 0x7f0b0433
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v0
+    if-eqz v0, :cond_1
+    check-cast v0, Landroid/widget/EditText;
+    const-string v1, "USU\u00c1RIO (opcional)"
+    invoke-virtual {v0, v1}, Landroid/widget/EditText;->setHint(Ljava/lang/CharSequence;)V
+    :cond_1
+    const v0, 0x7f0b0432
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v0
+    if-eqz v0, :cond_2
+    check-cast v0, Landroid/widget/EditText;
+    const-string v1, "SENHA (opcional)"
+    invoke-virtual {v0, v1}, Landroid/widget/EditText;->setHint(Ljava/lang/CharSequence;)V
+    :cond_2
+    const v0, 0x7f0b0431
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v0
+    if-eqz v0, :cond_3
+    check-cast v0, Landroid/widget/TextView;
+    const-string v1, "CONECTAR / VALIDAR MAC"
+    invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+    :cond_3
+    new-instance v0, Lcom/rencia/integration/RenciaIntegration$LoginWorker;
+    invoke-direct {v0, p0}, Lcom/rencia/integration/RenciaIntegration$LoginWorker;-><init>(Landroid/content/Context;)V
+    new-instance v1, Ljava/lang/Thread;
+    invoke-direct {v1, v0}, Ljava/lang/Thread;-><init>(Ljava/lang/Runnable;)V
+    invoke-virtual {v1}, Ljava/lang/Thread;->start()V
+    return-void
+.end method
+
 .method public static checkUpdate(Landroid/content/Context;)V
     .locals 8
     invoke-static {p0}, Lcom/rencia/integration/RenciaIntegration;->getMacForWorker(Landroid/content/Context;)Ljava/lang/String;

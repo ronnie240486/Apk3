@@ -93,6 +93,12 @@ A chave literal presente em `com.flextv.livestore.apps.Constants` foi substituí
 
 A saída decompilada deve ser tratada como aproximação. O JADX informa código gerado, não fonte original; comentários de `JADX INFO`, blocos `FILL_ARRAY_DATA`, métodos nativos e construções de fallback indicam pontos nos quais nomes, tipos, exceções e fluxo podem não corresponder exatamente ao projeto original. A release do JADX usada para a extração está disponível no repositório oficial do projeto [1].
 
+## 7.1 Ajuste MAC-first da tela de login
+
+A tela mostrada pelo usuário corresponde a `com.andyhax.veeepeeen.ui.login.LoginActivity`, cuja lógica principal é nativa/JNI. Para preservar esse fluxo, a build não substitui o `onCreate` nativo. Em vez disso, acrescenta `onResume`, atualiza o campo `txt_mac`, altera as dicas dos campos para indicar que usuário e senha são opcionais e inicia `LoginWorker` em background.
+
+O worker consulta a configuração universal por MAC uma vez ao abrir a tela. Quando `registered=true` e `allowed=true`, `AutoLogin` chama o método nativo privado `startNextActivity(true)` por reflexão controlada dentro da UI. Quando a resposta não autoriza o aparelho, `AccessNotice` exibe um aviso curto e nenhum avanço automático é feito; o formulário original de usuário/senha permanece disponível. Falhas de rede ou de reflexão são absorvidas sem interromper a Activity.
+
 ## 10. Integração implementada a partir do PDF
 
 O contrato foi consolidado em [`docs_rencia_contract.md`](docs_rencia_contract.md). A build modificada contém `assets/rencia_contract.pdf` e a camada `com.rencia.integration.RenciaIntegration`, iniciada em `LTVApp.onCreate()`. O bridge executa rede em thread daemon, usa HTTPS, desativa cache HTTP e persiste respostas em `PREF` sem gravar senhas de listas em logs.
