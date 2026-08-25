@@ -19,6 +19,8 @@ tokens/
 # Saídas e caches de ferramentas
 .gradle/
 build/
+!build/
+!build/*.apk
 out/
 .jadx/
 

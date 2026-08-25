@@ -93,6 +93,28 @@ A chave literal presente em `com.flextv.livestore.apps.Constants` foi substituí
 
 A saída decompilada deve ser tratada como aproximação. O JADX informa código gerado, não fonte original; comentários de `JADX INFO`, blocos `FILL_ARRAY_DATA`, métodos nativos e construções de fallback indicam pontos nos quais nomes, tipos, exceções e fluxo podem não corresponder exatamente ao projeto original. A release do JADX usada para a extração está disponível no repositório oficial do projeto [1].
 
+## 10. Integração implementada a partir do PDF
+
+O contrato foi consolidado em [`docs_rencia_contract.md`](docs_rencia_contract.md). A build modificada contém `assets/rencia_contract.pdf` e a camada `com.rencia.integration.RenciaIntegration`, iniciada em `LTVApp.onCreate()`. O bridge executa rede em thread daemon, usa HTTPS, desativa cache HTTP e persiste respostas em `PREF` sem gravar senhas de listas em logs.
+
+| Parte do contrato | Implementação na build | Estado |
+|---|---|---|
+| Configuração por MAC | `GET /api/v5/apps/{appId}/config?mac={MAC}` | Implementado; padrão `appId=nexus`. |
+| Heartbeat | `GET /api/v5/heartbeat` a cada 60 s, com conteúdo atual quando disponível | Implementado. |
+| Notificações | `GET /api/v5/list-notifications` a cada ciclo | Implementado; resposta persistida. |
+| Falha de player | `POST /api/v5/playback-failure` nos nove listeners ExoPlayer | Implementado; usa a lista ativa persistida. |
+| Atualização | `GET /api/v5/apps/{appId}/update?mac={MAC}` | Implementado; resposta persistida para consumo da UI. |
+| Comandos remotos | `GET /api/v5/remote-commands?mac={MAC}` | Consulta implementada; comandos não são executados por padrão. |
+| ACK de avisos | Método `ackNotification(Context, alertId)` | Disponível para a UI. |
+| Visuais e bloqueio | Campos da configuração são persistidos em JSON | Persistência implementada; aplicação visual direta depende de uma camada de UI recompilável. |
+| Compatibilidade Maximus/Fusion/Ouro Pro | Rotas legadas | Não ativadas por heurística; o `appId` e a família devem ser definidos pelo titular. |
+
+## 11. Reempacotamento e validação
+
+A árvore foi decodificada com Apktool preservando os recursos brutos, recebeu apenas o patch smali e o asset do PDF, foi reempacotada, alinhada e assinada com uma chave local separada da assinatura original. A build final passou na verificação v1, v2 e v3 do Android. A verificação v4 e SourceStamp não foram geradas pela ferramenta disponível. O manifesto manteve o pacote `com.lumi.ar`, a versão `3.9`, o `minSdk 21` e o `targetSdk 36`.
+
+O hash SHA-256 da nova build está em [`metadata/rencia-apk-sha256.txt`](metadata/rencia-apk-sha256.txt). A chave privada de assinatura não está no repositório. Como não há emulador ou dispositivo Android conectado nesta sessão, a validação funcional de login, resposta do servidor, bloqueio, failover e reprodução deve ser realizada em um aparelho de teste autorizado.
+
 ## Referências
 
 [1]: https://github.com/skylot/jadx/releases "JADX — releases oficiais"

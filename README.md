@@ -26,6 +26,16 @@ A saída inclui os fontes Java gerados pelo JADX, os recursos decodificados, o m
 
 Os arquivos gerados podem conter construções inválidas, nomes artificiais e fluxo de controle reconstruído de forma imperfeita. Para compreender o comportamento original, compare sempre os fontes decompilados com o bytecode DEX e com os recursos do APK de origem.
 
+## Build integrada ao contrato Rencia
+
+A build [`build/LUMI3.9-rencia.apk`](build/LUMI3.9-rencia.apk) é uma cópia reempacotada e assinada localmente do LUMI 3.9. Ela inclui [`build/rencia_contract.pdf`](build/rencia_contract.pdf) como asset e uma camada smali em `patch/smali/com/rencia/integration/` que inicia, em thread de background, a configuração por MAC, heartbeat, notificações, atualização e consulta de comandos remotos.
+
+A camada grava a resposta bruta e estados não sensíveis em `SharedPreferences` `PREF`, desativa cache HTTP para essas chamadas e envia `POST /api/v5/playback-failure` somente a partir dos listeners de erro do ExoPlayer. O relatório de falha usa o número da lista persistido pelo servidor. Comandos remotos são consultados e armazenados, mas não são executados automaticamente porque o PDF não define uma whitelist de comandos suportados. Os players podem ser integrados a uma whitelist posterior por meio de `ackNotification` e de um ACK de comando explicitamente implementado.
+
+O `appId` padrão do bridge é `nexus` e pode ser substituído antes da instalação escrevendo `rencia_app_id` nas preferências do app. A integração não altera diretamente a UI existente para aplicar logo, banner, fundo ou bloqueios; ela persiste a configuração para a camada de interface consumir. O APK foi reempacotado a partir de um binário, não de um projeto-fonte Android, portanto a build é um artefato de patch e não uma reprodução do projeto original.
+
+A assinatura da build é diferente da assinatura original. O APK original não foi incluído na árvore pública; a chave privada usada na assinatura local também permanece fora do repositório.
+
 ## Achados técnicos resumidos
 
 A aplicação se comporta como um cliente IPTV/streaming para TV e dispositivos Android, com telas de canais ao vivo, filmes, séries, EPG, reprodução interna/externa, playlists M3U e legendas. A interface Retrofit declara chamadas para `player_api.php` e `xmltv.php`, com parâmetros `username`, `password`, `stream_id`, `series_id` e `vod_id`.
