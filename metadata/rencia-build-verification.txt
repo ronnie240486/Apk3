@@ -1,6 +1,6 @@
 APK: build/LUMI3.9-rencia.apk
-sha256=cb62019692c32ba0272da3caec16f31478bb1d75d2f370a24675c8acc03a26ec
+sha256=931b084f621d8b165dd6a3822e170a75ad7fa8bc2a412fc70867288ccc7424a6
 size_bytes=28288763
-verified: LoginWorker constructor declaration and invocation both use Activity
-verified: LoginActivity has no onResume override
-verified: RenciaLifecycle.onActivityResumed(Activity) calls attachLogin
+verified: attachLogin returns before UI/network work when hax_login is absent
+verified: MAC is updated only on the login layout
+verified: LoginWorker constructor invocation uses Activity

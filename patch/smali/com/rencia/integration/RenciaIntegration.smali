@@ -268,6 +268,10 @@
 
 .method public static attachLogin(Landroid/app/Activity;)V
     .locals 11
+    const v0, 0x7f0b0431
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v0
+    if-eqz v0, :return_early
     const v0, 0x7f0b03de
     invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
     move-result-object v0
@@ -313,6 +317,8 @@
     new-instance v1, Ljava/lang/Thread;
     invoke-direct {v1, v0}, Ljava/lang/Thread;-><init>(Ljava/lang/Runnable;)V
     invoke-virtual {v1}, Ljava/lang/Thread;->start()V
+    return-void
+    :return_early
     return-void
 .end method
 
