@@ -1,6 +1,7 @@
 APK: build/LUMI3.9-rencia.apk
-sha256=931b084f621d8b165dd6a3822e170a75ad7fa8bc2a412fc70867288ccc7424a6
+sha256=5987552831a614a8a5e3a6aa0ecdcb3ef6d27a00fcdc6da78a76e6c5c578bc74
 size_bytes=28288763
-verified: attachLogin returns before UI/network work when hax_login is absent
-verified: MAC is updated only on the login layout
-verified: LoginWorker constructor invocation uses Activity
+verified: username and password controls are hidden on login
+verified: MAC TextView has click listener with ClipboardManager
+verified: button text is VALIDAR MAC
+verified: Activities without hax_login are ignored

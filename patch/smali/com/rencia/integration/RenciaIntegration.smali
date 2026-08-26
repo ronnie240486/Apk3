@@ -287,6 +287,12 @@
     invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
     move-result-object v1
     invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+    const/4 v2, 0x1
+    invoke-virtual {v0, v2}, Landroid/view/View;->setClickable(Z)V
+    invoke-virtual {v0, v2}, Landroid/view/View;->setFocusable(Z)V
+    new-instance v3, Lcom/rencia/integration/RenciaIntegration$MacCopyListener;
+    invoke-direct {v3, p0, v1}, Lcom/rencia/integration/RenciaIntegration$MacCopyListener;-><init>(Landroid/content/Context;Ljava/lang/String;)V
+    invoke-virtual {v0, v3}, Landroid/view/View;->setOnClickListener(Landroid/view/View$OnClickListener;)V
     :cond_0
     const v0, 0x7f0b0433
     invoke-virtual {p0, v0}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
@@ -309,9 +315,22 @@
     move-result-object v0
     if-eqz v0, :cond_3
     check-cast v0, Landroid/widget/TextView;
-    const-string v1, "CONECTAR / VALIDAR MAC"
+    const-string v1, "VALIDAR MAC"
     invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
     :cond_3
+    const/16 v1, 0x8
+    const v2, 0x7f0b0433
+    invoke-virtual {p0, v2}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v2
+    if-eqz v2, :hide_password
+    invoke-virtual {v2, v1}, Landroid/view/View;->setVisibility(I)V
+    :hide_password
+    const v2, 0x7f0b0432
+    invoke-virtual {p0, v2}, Landroid/app/Activity;->findViewById(I)Landroid/view/View;
+    move-result-object v2
+    if-eqz v2, :hide_fields_done
+    invoke-virtual {v2, v1}, Landroid/view/View;->setVisibility(I)V
+    :hide_fields_done
     new-instance v0, Lcom/rencia/integration/RenciaIntegration$LoginWorker;
     invoke-direct {v0, p0}, Lcom/rencia/integration/RenciaIntegration$LoginWorker;-><init>(Landroid/app/Activity;)V
     new-instance v1, Ljava/lang/Thread;
