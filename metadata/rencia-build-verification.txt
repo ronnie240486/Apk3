@@ -1,6 +1,6 @@
 APK: build/LUMI3.9-rencia.apk
-sha256=c44b776195a22c4ef1d54c75ccdbe56b0902b44f2291fcc50fc40ea275b89097
+sha256=cb62019692c32ba0272da3caec16f31478bb1d75d2f370a24675c8acc03a26ec
 size_bytes=28288763
+verified: LoginWorker constructor declaration and invocation both use Activity
 verified: LoginActivity has no onResume override
 verified: RenciaLifecycle.onActivityResumed(Activity) calls attachLogin
-verified: RenciaIntegration.start registers Application.ActivityLifecycleCallbacks

@@ -40,7 +40,7 @@ A assinatura da build é diferente da assinatura original. O APK original não f
 
 ### Correção da build
 
-Uma versão anterior chamava `checkUpdate(Context)` e `pollRemoteCommands(Context)` pelo worker, mas esses métodos não estavam presentes no mesmo DEX, gerando `NoSuchMethodError` no aparelho. Depois, uma tentativa de anexar o fluxo diretamente a `LoginActivity.onResume()` causou `LinkageError`, porque `FragmentActivity.onResume()` é final. A build atual mantém a Activity nativa intacta e usa `RenciaLifecycle.onActivityResumed(Activity)` registrado no `Application`; a correção foi verificada reabrindo o APK final com Apktool. O SHA-256 atualizado está em `metadata/rencia-apk-sha256.txt`.
+Uma versão anterior chamava `checkUpdate(Context)` e `pollRemoteCommands(Context)` pelo worker, mas esses métodos não estavam presentes no mesmo DEX, gerando `NoSuchMethodError` no aparelho. Depois, uma tentativa de anexar o fluxo diretamente a `LoginActivity.onResume()` causou `LinkageError`, porque `FragmentActivity.onResume()` é final. A build atual mantém a Activity nativa intacta e usa `RenciaLifecycle.onActivityResumed(Activity)` registrado no `Application`. Na última correção, a chamada foi alinhada ao construtor real `LoginWorker(Activity)`, eliminando a incompatibilidade `LoginWorker(Context)`. Essas assinaturas foram verificadas reabrindo o APK final com Apktool. O SHA-256 atualizado está em `metadata/rencia-apk-sha256.txt`.
 
 ## Achados técnicos resumidos
 

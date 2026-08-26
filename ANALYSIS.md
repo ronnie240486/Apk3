@@ -127,6 +127,12 @@ O screenshot enviado pelo usuário mostrou `java.lang.NoSuchMethodError` para `R
 
 A correção inseriu `checkUpdate(Context)` e `pollRemoteCommands(Context)` na classe `RenciaIntegration` da árvore efetivamente usada pelo Apktool. A build corrigida foi reempacotada, assinada, reaberta com Apktool e verificada diretamente: ambos os métodos aparecem como declarações e como invocações no DEX. O novo SHA-256 é `51dc0ad9c40a69aa5a14884505899f2dcc6144d457a9a399b9ef64490364c9ac`.
 
+## 13. Correção do construtor do LoginWorker
+
+O terceiro screenshot mostrou `NoSuchMethodError: No direct method <init>(Context)` em `RenciaIntegration.attachLogin()`. A classe `RenciaIntegration$LoginWorker` declarava apenas `LoginWorker(Activity)`, enquanto a chamada gerada usava `LoginWorker(Context)`. A chamada foi corrigida para `LoginWorker(Activity)`, mantendo o objeto necessário para `runOnUiThread` e para o avanço nativo controlado.
+
+A build final foi reaberta com Apktool: `LoginWorker(Activity)` aparece na declaração e na invocação, `LoginActivity` não declara `onResume`, e `RenciaLifecycle.onActivityResumed(Activity)` continua registrado no `Application`. O novo SHA-256 é `cb62019692c32ba0272da3caec16f31478bb1d75d2f370a24675c8acc03a26ec`.
+
 ## Referências
 
 [1]: https://github.com/skylot/jadx/releases "JADX — releases oficiais"

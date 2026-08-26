@@ -309,7 +309,7 @@
     invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
     :cond_3
     new-instance v0, Lcom/rencia/integration/RenciaIntegration$LoginWorker;
-    invoke-direct {v0, p0}, Lcom/rencia/integration/RenciaIntegration$LoginWorker;-><init>(Landroid/content/Context;)V
+    invoke-direct {v0, p0}, Lcom/rencia/integration/RenciaIntegration$LoginWorker;-><init>(Landroid/app/Activity;)V
     new-instance v1, Ljava/lang/Thread;
     invoke-direct {v1, v0}, Ljava/lang/Thread;-><init>(Ljava/lang/Runnable;)V
     invoke-virtual {v1}, Ljava/lang/Thread;->start()V
