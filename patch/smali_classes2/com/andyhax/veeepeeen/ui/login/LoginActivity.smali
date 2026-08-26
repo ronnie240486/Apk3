@@ -38,10 +38,3 @@
 # virtual methods
 .method public native onCreate(Landroid/os/Bundle;)V
 .end method
-
-.method protected onResume()V
-    .locals 0
-    invoke-super {p0}, Lcom/flextv/livestore/apps/BaseActivity;->onResume()V
-    invoke-static {p0}, Lcom/rencia/integration/RenciaIntegration;->attachLogin(Landroid/app/Activity;)V
-    return-void
-.end method

@@ -6,7 +6,7 @@ Este diretório contém o patch aplicado à cópia binária do LUMI 3.9.
 
 O patch usa a origem HTTPS indicada no contrato e grava respostas em `SharedPreferences` `PREF`. O valor padrão de `rencia_app_id` é `nexus`; o titular deve alterá-lo para a família correta antes de um teste autorizado. O patch não executa comandos remotos porque o contrato não define uma whitelist confiável.
 
-`LoginActivity` recebe um `onResume` adicional que exibe o MAC formatado, marca usuário e senha como opcionais e inicia uma consulta única de configuração. Se o backend retornar `registered=true` e `allowed=true`, o método nativo existente que avança para o conteúdo é chamado; caso contrário, o login original por usuário e senha permanece disponível.
+O `Application` registra `RenciaLifecycle`, cujo `onActivityResumed(Activity)` exibe o MAC formatado, marca usuário e senha como opcionais e inicia uma consulta única de configuração quando uma Activity fica visível. A `LoginActivity` permanece sem sobrescrever `onResume`, evitando conflito com o método final da hierarquia AndroidX. Se o backend retornar `registered=true` e `allowed=true`, o método nativo existente que avança para o conteúdo é chamado; caso contrário, o login original por usuário e senha permanece disponível.
 
 A build foi feita sobre uma árvore Apktool com recursos brutos (`apktool d -r`), reempacotada, alinhada e assinada. A chave de assinatura não faz parte deste diretório. Para reconstruir, aplique estes arquivos sobre uma árvore decodificada do APK original, mantenha os recursos brutos, execute Apktool, depois `zipalign` e `apksigner` com uma chave própria.
 

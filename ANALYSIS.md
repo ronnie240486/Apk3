@@ -95,7 +95,7 @@ A saída decompilada deve ser tratada como aproximação. O JADX informa código
 
 ## 7.1 Ajuste MAC-first da tela de login
 
-A tela mostrada pelo usuário corresponde a `com.andyhax.veeepeeen.ui.login.LoginActivity`, cuja lógica principal é nativa/JNI. Para preservar esse fluxo, a build não substitui o `onCreate` nativo. Em vez disso, acrescenta `onResume`, atualiza o campo `txt_mac`, altera as dicas dos campos para indicar que usuário e senha são opcionais e inicia `LoginWorker` em background.
+A tela mostrada pelo usuário corresponde a `com.andyhax.veeepeeen.ui.login.LoginActivity`, cuja lógica principal é nativa/JNI. Para preservar esse fluxo, a build não substitui o `onCreate` nativo nem sobrescreve `onResume`, que é final na hierarquia `FragmentActivity`. Em vez disso, registra `RenciaLifecycle` no `Application`; o método `onActivityResumed(Activity)` atualiza o campo `txt_mac`, altera as dicas dos campos para indicar que usuário e senha são opcionais e inicia `LoginWorker` em background.
 
 O worker consulta a configuração universal por MAC uma vez ao abrir a tela. Quando `registered=true` e `allowed=true`, `AutoLogin` chama o método nativo privado `startNextActivity(true)` por reflexão controlada dentro da UI. Quando a resposta não autoriza o aparelho, `AccessNotice` exibe um aviso curto e nenhum avanço automático é feito; o formulário original de usuário/senha permanece disponível. Falhas de rede ou de reflexão são absorvidas sem interromper a Activity.
 

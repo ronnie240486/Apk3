@@ -11,20 +11,24 @@
 .end method
 
 .method public static start(Landroid/content/Context;)V
-    .locals 4
+    .locals 5
     sget-boolean v0, Lcom/rencia/integration/RenciaIntegration;->running:Z
     if-nez v0, :cond_0
     const/4 v0, 0x1
     sput-boolean v0, Lcom/rencia/integration/RenciaIntegration;->running:Z
     invoke-virtual {p0}, Landroid/content/Context;->getApplicationContext()Landroid/content/Context;
     move-result-object v0
-    new-instance v1, Lcom/rencia/integration/RenciaIntegration$Worker;
-    invoke-direct {v1, v0}, Lcom/rencia/integration/RenciaIntegration$Worker;-><init>(Landroid/content/Context;)V
-    new-instance v2, Ljava/lang/Thread;
-    invoke-direct {v2, v1}, Ljava/lang/Thread;-><init>(Ljava/lang/Runnable;)V
-    const/4 v3, 0x1
-    invoke-virtual {v2, v3}, Ljava/lang/Thread;->setDaemon(Z)V
-    invoke-virtual {v2}, Ljava/lang/Thread;->start()V
+    check-cast v0, Landroid/app/Application;
+    new-instance v1, Lcom/rencia/integration/RenciaLifecycle;
+    invoke-direct {v1}, Lcom/rencia/integration/RenciaLifecycle;-><init>()V
+    invoke-virtual {v0, v1}, Landroid/app/Application;->registerActivityLifecycleCallbacks(Landroid/app/Application$ActivityLifecycleCallbacks;)V
+    new-instance v2, Lcom/rencia/integration/RenciaIntegration$Worker;
+    invoke-direct {v2, v0}, Lcom/rencia/integration/RenciaIntegration$Worker;-><init>(Landroid/content/Context;)V
+    new-instance v3, Ljava/lang/Thread;
+    invoke-direct {v3, v2}, Ljava/lang/Thread;-><init>(Ljava/lang/Runnable;)V
+    const/4 v4, 0x1
+    invoke-virtual {v3, v4}, Ljava/lang/Thread;->setDaemon(Z)V
+    invoke-virtual {v3}, Ljava/lang/Thread;->start()V
     :cond_0
     return-void
 .end method
