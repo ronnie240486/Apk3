@@ -5,6 +5,7 @@ name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
 #  - heartbeat a cada 60 s (e na hora que muda o que esta tocando) com "Assistindo": TV ao vivo, filme, serie ou reprise;
 #    manda "__idle__" quando nada toca (o painel apaga o "Assistindo")
 #  - avisos do painel e aviso de vencimento aparecem na tela, com confirmacao (ack)
+#  - o app consulta o painel como "ouropro" (antes era "nexus")
 #  - tela de MAC: sem "usuario e senha"; confere o painel sozinha e abre assim que o MAC for liberado
 #  - comandos remotos: exibir aviso e reiniciar/atualizar (o antigo "consultava" os comandos e perdia todos)
 # Roda sozinho quando este arquivo e enviado. O APK sai em Actions > (execucao) > Artifacts.
@@ -112,7 +113,7 @@ jobs:
 
               const-string v2, "rencia_app_id"
 
-              const-string v3, "nexus"
+              const-string v3, "ouropro"
 
               invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 
@@ -220,6 +221,12 @@ jobs:
               body = body[:m.end()] + "\n\n    invoke-static {p0}, %s->start(Landroid/content/Context;)V\n" % PANEL + body[m.end():]
               t = t[:a] + body + t[b:]
               report.add("gancho_start")
+
+              # appId padrao: OuroPro (a preferencia rencia_app_id, se existir, continua valendo)
+              t, k = re.subn(r'(const-string v\d+, )"nexus"', r'\1"ouropro"', t)
+              assert k >= 1, "appId padrao nexus nao encontrado"
+              assert '"nexus"' not in t
+              report.add("app_ouropro")
 
               write(main, t)
 
@@ -465,8 +472,8 @@ jobs:
 
               private static String appId() {
                   SharedPreferences p = pref();
-                  String id = p == null ? "nexus" : p.getString("rencia_app_id", "nexus");
-                  return id == null || id.length() == 0 ? "nexus" : id;
+                  String id = p == null ? "ouropro" : p.getString("rencia_app_id", "ouropro");
+                  return id == null || id.length() == 0 ? "ouropro" : id;
               }
 
               // ------------------------------------------------------------------ ciclo
@@ -755,7 +762,7 @@ jobs:
           test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration"; exit 1; }
           sort -u work/applied.txt > work/applied_u.txt
           echo "Patches aplicados:"; cat work/applied_u.txt
-          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac; do
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_ouropro; do
             grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
           done
 
