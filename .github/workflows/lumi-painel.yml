@@ -1,0 +1,772 @@
+name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
+
+# Corrige o APK pronto do LUMI 3.9 (build/LUMI3.9-rencia.apk) SEM reconstruir o app inteiro:
+#  - painel: Railway no lugar do Manus (o Manus fica so como reserva se o Railway nao responder)
+#  - heartbeat a cada 60 s (e na hora que muda o que esta tocando) com "Assistindo": TV ao vivo, filme, serie ou reprise;
+#    manda "__idle__" quando nada toca (o painel apaga o "Assistindo")
+#  - avisos do painel e aviso de vencimento aparecem na tela, com confirmacao (ack)
+#  - comandos remotos: exibir aviso e reiniciar/atualizar (o antigo "consultava" os comandos e perdia todos)
+# Roda sozinho quando este arquivo e enviado. O APK sai em Actions > (execucao) > Artifacts.
+on:
+  push:
+    paths:
+      - ".github/workflows/lumi-painel.yml"
+  workflow_dispatch:
+    inputs:
+      apk:
+        description: "APK de origem (caminho dentro do repositorio)"
+        required: true
+        default: "build/LUMI3.9-rencia.apk"
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar so o APK escolhido
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            ${{ inputs.apk || 'build/LUMI3.9-rencia.apk' }}
+          sparse-checkout-cone-mode: false
+
+      - name: Instalar ferramentas (smali/baksmali e zip)
+        run: |
+          exec > >(tee /tmp/step.log) 2>&1
+          trap 'rc=$?; sleep 1; [ $rc -eq 0 ] || echo "::error title=Falhou::$(tail -n 14 /tmp/step.log | cut -c1-260 | sed "s/%/%25/g" | paste -sd "|" -)"' EXIT
+          sudo apt-get update -q
+          sudo apt-get install -y -q smali zip unzip
+          command -v baksmali && command -v smali
+
+      - name: Chave de assinatura (guardada em cache entre execucoes)
+        uses: actions/cache@v4
+        with:
+          path: lumi.keystore
+          key: lumi-keystore-v1
+
+      - name: Criar a chave se ainda nao existir
+        run: |
+          if [ ! -f lumi.keystore ]; then
+            keytool -genkeypair -v -keystore lumi.keystore -storepass lumi-test-key -keypass lumi-test-key \
+              -alias lumi -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LUMI Test"
+          fi
+
+      - name: Corrigir o APK
+        env:
+          APK: ${{ inputs.apk || 'build/LUMI3.9-rencia.apk' }}
+        run: |
+          exec > >(tee /tmp/step.log) 2>&1
+          trap 'rc=$?; sleep 1; [ $rc -eq 0 ] || echo "::error title=Falhou::$(tail -n 14 /tmp/step.log | cut -c1-260 | sed "s/%/%25/g" | paste -sd "|" -)"' EXIT
+          set -euo pipefail
+          test -f "$APK" || { echo "APK nao encontrado: $APK"; exit 1; }
+          mkdir -p work/dex work/new work/jc work/d8 src/com/rencia/integration
+          cd work/dex && unzip -q "../../$APK" 'classes*.dex' && cd ../..
+
+          cat > patch_lumi.py <<'PYEOF'
+          """Patches de smali do LUMI 3.9 (camada com.rencia.integration).
+          Uso: python3 patch_lumi.py <pasta_smali> <arquivo_de_relatorio>
+          Roda sobre a pasta gerada pelo baksmali do dex que tem com/rencia/integration/RenciaIntegration.
+          Cada patch aplicado e anotado no relatorio; o workflow confere no fim que todos entraram."""
+          import glob
+          import os
+          import re
+          import sys
+
+          OLD = "https://renciaapp.manus.space"
+          NEW = "https://renciaapp-production.up.railway.app"
+          PANEL = "Lcom/rencia/integration/LumiPanel;"
+
+          REQUEST_NEW = """.method public static request(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+              .locals 1
+
+              invoke-static {p0, p1, p2}, %s->request(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+              move-result-object v0
+
+              return-object v0
+          .end method""" % PANEL
+
+          SYNC_NEW = """.method public static sync(Landroid/content/Context;)V
+              .locals 5
+
+              invoke-static {p0}, Lcom/rencia/integration/RenciaIntegration;->getMacForWorker(Landroid/content/Context;)Ljava/lang/String;
+
+              move-result-object v0
+
+              if-eqz v0, :lumi_done
+
+              invoke-virtual {v0}, Ljava/lang/String;->length()I
+
+              move-result v1
+
+              if-lez v1, :lumi_done
+
+              const-string v1, "PREF"
+
+              const/4 v2, 0x0
+
+              invoke-virtual {p0, v1, v2}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+
+              move-result-object v1
+
+              const-string v2, "rencia_app_id"
+
+              const-string v3, "nexus"
+
+              invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+              move-result-object v2
+
+              new-instance v3, Ljava/lang/StringBuilder;
+
+              invoke-direct {v3}, Ljava/lang/StringBuilder;-><init>()V
+
+              const-string v4, "%s/api/v5/apps/"
+
+              invoke-virtual {v3, v4}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+              invoke-virtual {v3, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+              const-string v4, "/config?mac="
+
+              invoke-virtual {v3, v4}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+              invoke-virtual {v3, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+              invoke-virtual {v3}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+              move-result-object v3
+
+              const-string v4, "GET"
+
+              const/4 v0, 0x0
+
+              invoke-static {v3, v4, v0}, Lcom/rencia/integration/RenciaIntegration;->request(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+              move-result-object v3
+
+              if-eqz v3, :lumi_done
+
+              invoke-static {p0, v3}, Lcom/rencia/integration/RenciaIntegration;->saveConfig(Landroid/content/Context;Ljava/lang/String;)V
+
+              :lumi_done
+              return-void
+          .end method""" % NEW
+
+          POLL_NEW = """.method public static pollRemoteCommands(Landroid/content/Context;)V
+              .locals 0
+
+              # os comandos agora sao buscados e executados pelo LumiPanel (esta rotina so os "gastava")
+              return-void
+          .end method"""
+
+
+          def read(path):
+              with open(path, encoding="utf-8") as f:
+                  return f.read()
+
+
+          def write(path, text):
+              with open(path, "w", encoding="utf-8", newline="\n") as f:
+                  f.write(text)
+
+
+          def method_span(text, header_re):
+              m = re.search(r"^\.method [^\n]*?" + header_re + r"[^\n]*\n.*?^\.end method", text, re.M | re.S)
+              assert m, "metodo nao encontrado: " + header_re
+              return m.start(), m.end()
+
+
+          def patch(root, report):
+              base = os.path.join(root, "com", "rencia", "integration")
+              main = os.path.join(base, "RenciaIntegration.smali")
+              assert os.path.isfile(main), "RenciaIntegration.smali nao encontrado neste dex"
+
+              # 1) Railway no lugar do Manus (o reserva fica dentro do LumiPanel.request)
+              urls = 0
+              for path in sorted(glob.glob(os.path.join(base, "*.smali"))):
+                  t = read(path)
+                  n = t.count(OLD)
+                  if n:
+                      write(path, t.replace(OLD, NEW))
+                      urls += n
+              assert urls >= 5, "enderecos do Manus encontrados: %d (esperava >= 5)" % urls
+              report.add("painel_railway")
+
+              t = read(main)
+
+              # 2) request(): passa a usar Railway primeiro / Manus de reserva
+              a, b = method_span(t, r"static request\(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;\)Ljava/lang/String;")
+              t = t[:a] + REQUEST_NEW + t[b:]
+              report.add("reserva_manus")
+
+              # 3) pollRemoteCommands(): fora (os comandos agora sao executados pelo LumiPanel)
+              a, b = method_span(t, r"static pollRemoteCommands\(Landroid/content/Context;\)V")
+              t = t[:a] + POLL_NEW + t[b:]
+              report.add("sem_poll_antigo")
+
+              # 4) sync(): fica so a configuracao; heartbeat e avisos passam para o LumiPanel (com __idle__ e Assistindo)
+              a, b = method_span(t, r"static sync\(Landroid/content/Context;\)V")
+              assert "/api/v5/heartbeat" in t[a:b] and "/api/v5/list-notifications" in t[a:b], "sync() nao e o esperado"
+              t = t[:a] + SYNC_NEW + t[b:]
+              report.add("sem_heartbeat_antigo")
+
+              # 5) start(): liga o LumiPanel junto com a camada Rencia (logo depois da diretiva de registradores)
+              a, b = method_span(t, r"static start\(Landroid/content/Context;\)V")
+              body = t[a:b]
+              m = re.search(r"^\s*\.(?:registers|locals)\s+\d+\s*$", body, re.M)
+              assert m, "diretiva de registradores de start() nao encontrada"
+              body = body[:m.end()] + "\n\n    invoke-static {p0}, %s->start(Landroid/content/Context;)V\n" % PANEL + body[m.end():]
+              t = t[:a] + body + t[b:]
+              report.add("gancho_start")
+
+              write(main, t)
+
+
+          def lint(root):
+              """Confere o basico do smali alterado: .method/.end method em par e rotulos definidos."""
+              for path in sorted(glob.glob(os.path.join(root, "com", "rencia", "integration", "*.smali"))):
+                  t = read(path)
+                  name = os.path.basename(path)
+                  assert len(re.findall(r"^\.method ", t, re.M)) == len(re.findall(r"^\.end method", t, re.M)), name + ": .method sem par"
+                  for m in re.finditer(r"^\.method .*?^\.end method", t, re.M | re.S):
+                      body = m.group(0)
+                      defined = set(re.findall(r"^\s*(:[A-Za-z0-9_]+)\s*$", body, re.M))
+                      used = set(re.findall(r"[ ,{](:[A-Za-z0-9_]+)", re.sub(r"^\s*:[A-Za-z0-9_]+\s*$", "", body, flags=re.M)))
+                      used = {u for u in used if not u.startswith("::")}
+                      missing = used - defined
+                      assert not missing, name + ": rotulo sem definicao " + str(missing)
+
+
+          def main():
+              root, out = sys.argv[1], sys.argv[2]
+              report = set()
+              patch(root, report)
+              lint(root)
+              with open(out, "a") as f:
+                  for item in sorted(report):
+                      f.write(item + "\n")
+              print("Patches deste dex:", sorted(report))
+
+
+          if __name__ == "__main__":
+              main()
+          PYEOF
+
+          cat > src/com/rencia/integration/LumiPanel.java <<'JEOF'
+          package com.rencia.integration;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.app.Application;
+          import android.content.Context;
+          import android.content.DialogInterface;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.BufferedReader;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.lang.ref.WeakReference;
+          import java.lang.reflect.Field;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.net.URLEncoder;
+          import java.nio.charset.StandardCharsets;
+          import java.util.HashSet;
+          import java.util.Iterator;
+          import java.util.Locale;
+          import java.util.Set;
+          import java.util.concurrent.Callable;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.FutureTask;
+          import java.util.concurrent.ScheduledExecutorService;
+          import java.util.concurrent.TimeUnit;
+
+          /**
+           * LUMI 3.9 ligado ao painel Rencia/Railway (completa a camada com.rencia.integration):
+           *  - request(): Railway primeiro; se nao responder JSON (queda, 5xx, pagina de erro), repete no Manus;
+           *  - "Assistindo": TV ao vivo (LTVApp.channelName), filme, serie ou reprise; "__idle__" quando nada toca,
+           *    na hora que muda e a cada 60 s;
+           *  - avisos do painel e aviso de vencimento na tela, com confirmacao (ack);
+           *  - comandos remotos: exibir aviso e reiniciar/atualizar (abre o app de novo); troca de lista nao existe neste app.
+           * So usa classes do app por reflexao: se algum nome mudar, esse recurso fica parado e o app segue normal.
+           */
+          public final class LumiPanel {
+              private static final String RAILWAY = "https://renciaapp-production.up.railway.app";
+              private static final String MANUS = "https://renciaapp.manus.space";
+              private static final String IDLE = "__idle__";
+              private static final String PREF = "PREF";
+              private static final String OWN = "lumi_panel_prefs";
+
+              private static final Handler MAIN = new Handler(Looper.getMainLooper());
+              private static final Object LOCK = new Object();
+              private static final Set<Long> SHOWN_ALERTS = new HashSet<Long>();
+
+              private static Context app;
+              private static ScheduledExecutorService executor;
+              private static volatile WeakReference<Activity> top = new WeakReference<Activity>(null);
+              private static volatile boolean started;
+              private static volatile boolean sendAppId = true;
+              private static volatile String lastSent = null;
+              private static volatile long lastCycleAt;
+
+              private LumiPanel() {}
+
+              // ------------------------------------------------------------------ gancho chamado por RenciaIntegration.start
+
+              public static void start(Context context) {
+                  try {
+                      if (context == null) return;
+                      synchronized (LOCK) {
+                          if (started) return;
+                          started = true;
+                          app = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+                      }
+                      if (app instanceof Application) {
+                          ((Application) app).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                              @Override public void onActivityResumed(Activity a) { top = new WeakReference<Activity>(a); }
+                              @Override public void onActivityPaused(Activity a) {
+                                  if (top.get() == a) top = new WeakReference<Activity>(null);
+                              }
+                              @Override public void onActivityStarted(Activity a) { if (top.get() == null) top = new WeakReference<Activity>(a); }
+                              @Override public void onActivityCreated(Activity a, Bundle b) {}
+                              @Override public void onActivityStopped(Activity a) {}
+                              @Override public void onActivitySaveInstanceState(Activity a, Bundle b) {}
+                              @Override public void onActivityDestroyed(Activity a) {}
+                          });
+                      }
+                      executor = Executors.newSingleThreadScheduledExecutor();
+                      executor.scheduleWithFixedDelay(new Runnable() {
+                          @Override public void run() { tick(); }
+                      }, 5, 5, TimeUnit.SECONDS);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              // ------------------------------------------------------------------ HTTP: Railway primeiro, Manus de reserva
+
+              /** Substitui RenciaIntegration.request(url, metodo, corpo): devolve o corpo da resposta ou null. */
+              public static String request(String url, String method, String body) {
+                  if (url != null && url.startsWith(RAILWAY)) {
+                      String first = once(url, method, body, true);
+                      if (first != null) return first;
+                      String second = once(MANUS + url.substring(RAILWAY.length()), method, body, false);
+                      return second;
+                  }
+                  return once(url, method, body, false);
+              }
+
+              /** strict = true: 5xx e resposta que nao e JSON contam como falha (devolve null para tentar o reserva). */
+              private static String once(String url, String method, String body, boolean strict) {
+                  HttpURLConnection c = null;
+                  try {
+                      c = (HttpURLConnection) new URL(url).openConnection();
+                      c.setRequestMethod(method == null ? "GET" : method);
+                      c.setConnectTimeout(8000);
+                      c.setReadTimeout(12000);
+                      c.setUseCaches(false);
+                      c.setRequestProperty("Accept", "application/json");
+                      if (body != null) {
+                          c.setDoOutput(true);
+                          c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                          OutputStream os = c.getOutputStream();
+                          os.write(body.getBytes(StandardCharsets.UTF_8));
+                          os.close();
+                      }
+                      int code = c.getResponseCode();
+                      InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                      String text = in == null ? "" : read(in).trim();
+                      if (strict && (code >= 500 || !text.startsWith("{"))) return null;
+                      return in == null ? null : text;
+                  } catch (Throwable t) {
+                      return null;
+                  } finally {
+                      if (c != null) c.disconnect();
+                  }
+              }
+
+              private static JSONObject getJson(String path) {
+                  try {
+                      String r = request(RAILWAY + path, "GET", null);
+                      return r == null || !r.startsWith("{") ? null : new JSONObject(r);
+                  } catch (Throwable t) {
+                      return null;
+                  }
+              }
+
+              private static JSONObject postJson(String path, JSONObject body) {
+                  try {
+                      String r = request(RAILWAY + path, "POST", body.toString());
+                      return r == null || !r.startsWith("{") ? null : new JSONObject(r);
+                  } catch (Throwable t) {
+                      return null;
+                  }
+              }
+
+              /** GET com app_id; se o painel disser que o MAC nao e desse app, repete sem app_id. */
+              private static JSONObject getWithAppId(String path) {
+                  if (sendAppId) {
+                      JSONObject r = getJson(path + "&app_id=" + enc(appId()));
+                      if (r != null && !r.optBoolean("success", true) && r.optString("message", "").contains("vinculado")) {
+                          sendAppId = false;
+                      } else {
+                          return r;
+                      }
+                  }
+                  return getJson(path);
+              }
+
+              private static String read(InputStream in) throws Exception {
+                  BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                  StringBuilder sb = new StringBuilder();
+                  String line;
+                  while ((line = r.readLine()) != null) sb.append(line);
+                  r.close();
+                  return sb.toString();
+              }
+
+              private static String enc(String s) {
+                  try { return URLEncoder.encode(s, "UTF-8"); } catch (Exception e) { return s; }
+              }
+
+              // ------------------------------------------------------------------ dados do app
+
+              private static SharedPreferences pref() {
+                  try { return app.getSharedPreferences(PREF, Context.MODE_PRIVATE); } catch (Throwable t) { return null; }
+              }
+
+              private static SharedPreferences own() {
+                  try { return app.getSharedPreferences(OWN, Context.MODE_PRIVATE); } catch (Throwable t) { return null; }
+              }
+
+              private static String mac() {
+                  SharedPreferences p = pref();
+                  String m = p == null ? "" : p.getString("mac_address", "");
+                  return m == null ? "" : m.trim();
+              }
+
+              private static String appId() {
+                  SharedPreferences p = pref();
+                  String id = p == null ? "nexus" : p.getString("rencia_app_id", "nexus");
+                  return id == null || id.length() == 0 ? "nexus" : id;
+              }
+
+              // ------------------------------------------------------------------ ciclo
+
+              private static void tick() {
+                  try {
+                      if (mac().length() == 0) return;
+                      String content = currentContent();
+                      long now = System.currentTimeMillis();
+                      boolean cycleDue = now - lastCycleAt >= 60000L;
+                      boolean changed = lastSent == null || !content.equals(lastSent);
+                      if (!cycleDue && !changed) return;
+                      sendHeartbeat(content);
+                      if (cycleDue) {
+                          lastCycleAt = now;
+                          handleNotifications();
+                      }
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static void sendHeartbeat(String content) {
+                  String m = mac();
+                  if (m.length() == 0) return;
+                  lastSent = content;
+                  JSONObject response = getWithAppId("/api/v5/heartbeat?mac=" + enc(m) + "&current_content=" + enc(content));
+                  if (response != null) handleCommand(response.optJSONObject("command"), m);
+              }
+
+              // ------------------------------------------------------------------ "Assistindo"
+
+              private static String currentContent() {
+                  try {
+                      FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
+                          @Override public String call() { return readScreen(); }
+                      });
+                      MAIN.post(task);
+                      String r = task.get(2500, TimeUnit.MILLISECONDS);
+                      return r == null || r.length() == 0 ? IDLE : r;
+                  } catch (Throwable t) {
+                      return lastSent == null ? IDLE : lastSent;
+                  }
+              }
+
+              /** Roda na thread principal. Devolve o titulo do que esta tocando ou IDLE. */
+              private static String readScreen() {
+                  Activity a = top.get();
+                  if (a == null || a.isFinishing()) return IDLE;
+                  String n = a.getClass().getName();
+                  if (n.endsWith(".LiveActivity") || n.endsWith(".LiveChannelActivity")
+                          || n.endsWith(".LiveMobileActivity") || n.endsWith(".LiveChannelMobileActivity")) {
+                      String name = staticString("com.flextv.livestore.apps.LTVApp", "channelName");
+                      return name.length() > 0 ? "TV ao vivo: " + name : "TV ao vivo";
+                  }
+                  String kind = null;
+                  if (n.endsWith(".MoviePlayerActivity")) kind = "Filme";
+                  else if (n.endsWith(".SeriesPlayerActivity")) kind = "Série";
+                  else if (n.endsWith(".CatchUpPlayerActivity")) kind = "Reprise";
+                  if (kind == null) return IDLE;
+                  String title = titleOf(a);
+                  return title.length() > 0 ? kind + ": " + title : kind;
+              }
+
+              private static String staticString(String cls, String field) {
+                  try {
+                      Object v = Class.forName(cls).getField(field).get(null);
+                      return v instanceof String ? ((String) v).trim() : "";
+                  } catch (Throwable t) {
+                      return "";
+                  }
+              }
+
+              private static String titleOf(Activity a) {
+                  // 1) campo de texto da propria tela (ex.: SeriesPlayerActivity.name)
+                  for (String f : new String[]{"name", "title", "movieName", "movie_name"}) {
+                      try {
+                          Field fd = a.getClass().getDeclaredField(f);
+                          fd.setAccessible(true);
+                          Object v = fd.get(a);
+                          if (v instanceof String && ((String) v).trim().length() > 0) return ((String) v).trim();
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  // 2) extras da Intent que parecam o nome
+                  try {
+                      Intent intent = a.getIntent();
+                      Bundle extras = intent == null ? null : intent.getExtras();
+                      if (extras == null) return "";
+                      String best = "";
+                      Iterator<String> keys = extras.keySet().iterator();
+                      while (keys.hasNext()) {
+                          String key = keys.next();
+                          String low = key.toLowerCase(Locale.US);
+                          boolean nameLike = low.contains("name") || low.contains("title") || low.contains("nome") || low.contains("titulo");
+                          if (!nameLike || low.contains("cat") || low.contains("user") || low.contains("icon") || low.contains("container")) continue;
+                          Object v = extras.get(key);
+                          if (v instanceof String) {
+                              String t = ((String) v).trim();
+                              if (t.length() > 0 && !t.startsWith("http") && best.length() == 0) best = t;
+                          }
+                      }
+                      return best;
+                  } catch (Throwable t) {
+                      return "";
+                  }
+              }
+
+              // ------------------------------------------------------------------ avisos e vencimento
+
+              private static void handleNotifications() throws Exception {
+                  String m = mac();
+                  if (m.length() == 0) return;
+                  JSONObject payload = getJson("/api/v5/list-notifications?mac=" + enc(m));
+                  if (payload == null || !payload.optBoolean("success", false)) return;
+
+                  JSONObject expiration = payload.optJSONObject("expiration");
+                  if (expiration != null && expiration.optBoolean("show_modal", false)) {
+                      String key = expiration.optString("modal_key", "");
+                      SharedPreferences o = own();
+                      String shown = o == null ? "" : o.getString("expiration_key", "");
+                      if (key.length() > 0 && !key.equals(shown)) {
+                          if (showDialog(expiration.optString("modal_title", "Aviso"), expiration.optString("modal_message", ""))) {
+                              if (o != null) o.edit().putString("expiration_key", key).apply();
+                          }
+                      }
+                  }
+
+                  JSONArray list = payload.optJSONArray("notifications");
+                  if (list == null) return;
+                  for (int i = 0; i < list.length(); i++) {
+                      JSONObject n = list.optJSONObject(i);
+                      if (n == null || n.optBoolean("acknowledged", false)) continue;
+                      long id = n.optLong("id", 0L);
+                      if (id <= 0L) continue;
+                      synchronized (SHOWN_ALERTS) { if (SHOWN_ALERTS.contains(id)) continue; }
+                      if (showDialog(n.optString("title", "Aviso"), n.optString("message", ""))) {
+                          synchronized (SHOWN_ALERTS) { SHOWN_ALERTS.add(id); }
+                          JSONObject body = new JSONObject();
+                          body.put("mac", m);
+                          body.put("alert_id", id);
+                          postJson("/api/v5/list-notifications/ack", body);
+                      }
+                  }
+              }
+
+              // ------------------------------------------------------------------ comandos remotos
+
+              private static void handleCommand(JSONObject command, String m) {
+                  try {
+                      if (command == null) {
+                          JSONObject r = getWithAppId("/api/v5/remote-commands?mac=" + enc(m));
+                          command = r == null ? null : r.optJSONObject("command");
+                      }
+                      if (command == null) return;
+                      int id = command.optInt("id", 0);
+                      if (id <= 0) return;
+                      String type = command.optString("type", "");
+                      JSONObject p = command.optJSONObject("payload");
+                      if (p == null) p = new JSONObject();
+                      String status = "executed";
+                      String result = "";
+                      if ("show_message".equals(type)) {
+                          String msg = p.optString("message", "");
+                          String title = p.optString("title", "Aviso");
+                          if (msg.length() == 0) { status = "failed"; result = "Mensagem vazia"; }
+                          else if (!showDialog(title.length() == 0 ? "Aviso" : title, msg)) { return; } // sem tela: tenta no proximo ciclo
+                      } else if ("refresh_playlist".equals(type) || "update_dns".equals(type)
+                              || "sync_access".equals(type) || "restart_player".equals(type)) {
+                          ack(m, id, status, "Reiniciando o app");
+                          restartApp();
+                          return;
+                      } else if ("switch_playlist".equals(type)) {
+                          status = "failed";
+                          result = "Este app nao tem troca de lista";
+                      } else {
+                          status = "failed";
+                          result = "Comando nao suportado: " + type;
+                      }
+                      ack(m, id, status, result);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static void ack(String m, int id, String status, String message) {
+                  try {
+                      JSONObject body = new JSONObject();
+                      body.put("mac", m);
+                      body.put("command_id", id);
+                      body.put("status", status);
+                      body.put("app", appId());
+                      if (message != null && message.length() > 0) body.put("result_message", message);
+                      postJson("/api/v5/remote-commands/ack", body);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static void restartApp() {
+                  MAIN.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          try {
+                              Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
+                              if (launch == null) return;
+                              launch.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                              app.startActivity(launch);
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                  }, 800L);
+              }
+
+              // ------------------------------------------------------------------ tela
+
+              /** Mostra um aviso na tela. Devolve false se nao ha tela aberta agora (tenta de novo no proximo ciclo). */
+              private static boolean showDialog(final String title, final String message) {
+                  final Activity a = top.get();
+                  if (a == null || a.isFinishing()) return false;
+                  if (message == null || message.trim().length() == 0) return true;
+                  MAIN.post(new Runnable() {
+                      @Override public void run() {
+                          try {
+                              if (a.isFinishing()) return;
+                              AlertDialog.Builder b = new AlertDialog.Builder(a, AlertDialog.THEME_DEVICE_DEFAULT_DARK);
+                              b.setTitle(title == null || title.length() == 0 ? "Aviso" : title);
+                              b.setMessage(message);
+                              b.setCancelable(true);
+                              b.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                                  @Override public void onClick(DialogInterface d, int w) { d.dismiss(); }
+                              });
+                              b.show();
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                  });
+                  return true;
+              }
+          }
+          JEOF
+
+          # 1) smali: so o dex que tem a camada com.rencia.integration
+          : > work/applied.txt
+          CHANGED=""
+          for F in work/dex/classes*.dex; do
+            NAME=$(basename "$F")
+            if grep -aq "Lcom/rencia/integration/RenciaIntegration;" "$F"; then
+              echo "== $NAME"
+              baksmali d "$F" -o "work/smali_$NAME"
+              python3 -I patch_lumi.py "work/smali_$NAME" work/applied.txt
+              VER=$(head -c 7 "$F" | tail -c 3)
+              case "$VER" in 037) API=24 ;; 038) API=26 ;; 039) API=28 ;; *) API=15 ;; esac
+              echo "dex $NAME versao $VER -> smali --api $API"
+              smali a --api "$API" "work/smali_$NAME" -o "work/new/$NAME"
+              CHANGED="$CHANGED $NAME"
+            fi
+          done
+          test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration"; exit 1; }
+          sort -u work/applied.txt > work/applied_u.txt
+          echo "Patches aplicados:"; cat work/applied_u.txt
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start; do
+            grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
+          done
+
+          # 2) codigo novo (painel): compila e vira um dex a parte
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          ANDROID_JAR=$(ls "$ANDROID_SDK_ROOT"/platforms/android-*/android.jar | sort -V | tail -1)
+          echo "build-tools: $BT | android.jar: $ANDROID_JAR"
+          javac -nowarn -Xlint:-options --release 8 -cp "$ANDROID_JAR" -d work/jc src/com/rencia/integration/LumiPanel.java
+          "$BT/d8" --release --min-api 21 --lib "$ANDROID_JAR" --output work/d8 $(find work/jc -name '*.class')
+          NDEX=$(ls work/dex/classes*.dex | wc -l)
+          NEWDEX="classes$((NDEX + 1)).dex"
+          cp work/d8/classes.dex "work/new/$NEWDEX"
+          CHANGED="$CHANGED $NEWDEX"
+          echo "Dex novo do painel: $NEWDEX"
+
+          # 3) monta o APK
+          cp "$APK" work/unsigned.apk
+          zip -q -d work/unsigned.apk 'META-INF/*' || true
+          (cd work/new && zip -q ../unsigned.apk $CHANGED)
+          "$BT/zipalign" -p -f 4 work/unsigned.apk work/aligned.apk
+          OUT="LUMI-painel.apk"
+          "$BT/apksigner" sign --ks lumi.keystore --ks-key-alias lumi \
+            --ks-pass pass:lumi-test-key --key-pass pass:lumi-test-key \
+            --out "$OUT" work/aligned.apk
+          "$BT/apksigner" verify --verbose "$OUT"
+          unzip -tq "$OUT"
+          "$BT/aapt2" dump badging "$OUT" | grep -E "^package|application-label:" | head -n 2
+
+          # conferencia final dentro do APK pronto
+          python3 -I - <<'PYEOF'
+          import zipfile
+          z = zipfile.ZipFile("LUMI-painel.apk")
+          names = z.namelist()
+          dexnames = [n for n in names if n.startswith("classes") and n.endswith(".dex")]
+          raws = {n: z.read(n) for n in dexnames}
+          dex = b"".join(raws.values())
+          assert b"renciaapp-production.up.railway.app" in dex, "Railway nao encontrado no APK final"
+          holders = [n for n, r in raws.items() if b"Lcom/rencia/integration/LumiPanel;" in r and b"__idle__" in r and b"lumi_panel_prefs" in r]
+          assert holders, "Codigo do painel ausente no APK final"
+          # o Manus so pode aparecer como reserva dentro do LumiPanel
+          for n, r in raws.items():
+              if b"renciaapp.manus.space" in r:
+                  assert b"Lcom/rencia/integration/LumiPanel;" in r, "Manus fora da reserva em " + n
+          assert b"/api/v5/heartbeat" in dex and b"/api/v5/list-notifications" in dex and b"/api/v5/remote-commands" in dex, "Rotas do painel ausentes"
+          bridge = [n for n, r in raws.items() if b"Lcom/rencia/integration/RenciaIntegration;" in r]
+          assert bridge, "Camada com.rencia.integration ausente"
+          assert "AndroidManifest.xml" in names and "resources.arsc" in names
+          print("OK: Railway primeiro, Manus de reserva, __idle__, avisos e comandos (painel em", holders, "| camada em", bridge, ")")
+          PYEOF
+          sha256sum "$OUT"
+
+      - name: Guardar o APK ajustado
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMI-painel
+          path: LUMI-painel.apk
