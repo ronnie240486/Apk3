@@ -702,6 +702,11 @@ jobs:
             if grep -aq "Lcom/rencia/integration/RenciaIntegration;" "$F"; then
               echo "== $NAME"
               baksmali d "$F" -o "work/smali_$NAME"
+              # varios dex citam a classe (so chamam); so mexe naquele que a define
+              if [ ! -f "work/smali_$NAME/com/rencia/integration/RenciaIntegration.smali" ]; then
+                echo "$NAME so cita a camada, nao precisa mudar"
+                continue
+              fi
               python3 -I patch_lumi.py "work/smali_$NAME" work/applied.txt
               VER=$(head -c 7 "$F" | tail -c 3)
               case "$VER" in 037) API=24 ;; 038) API=26 ;; 039) API=28 ;; *) API=15 ;; esac
