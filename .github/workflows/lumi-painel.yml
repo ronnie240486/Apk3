@@ -89,71 +89,19 @@ jobs:
           .end method""" % PANEL
 
           SYNC_NEW = """.method public static sync(Landroid/content/Context;)V
-              .locals 5
+              .locals 2
 
-              invoke-static {p0}, Lcom/rencia/integration/RenciaIntegration;->getMacForWorker(Landroid/content/Context;)Ljava/lang/String;
+              invoke-static {p0}, %s->configJson(Landroid/content/Context;)Ljava/lang/String;
 
               move-result-object v0
 
               if-eqz v0, :lumi_done
 
-              invoke-virtual {v0}, Ljava/lang/String;->length()I
-
-              move-result v1
-
-              if-lez v1, :lumi_done
-
-              const-string v1, "PREF"
-
-              const/4 v2, 0x0
-
-              invoke-virtual {p0, v1, v2}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
-
-              move-result-object v1
-
-              const-string v2, "rencia_app_id"
-
-              const-string v3, "ouropro"
-
-              invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-
-              move-result-object v2
-
-              new-instance v3, Ljava/lang/StringBuilder;
-
-              invoke-direct {v3}, Ljava/lang/StringBuilder;-><init>()V
-
-              const-string v4, "%s/api/v5/apps/"
-
-              invoke-virtual {v3, v4}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-              invoke-virtual {v3, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-              const-string v4, "/config?mac="
-
-              invoke-virtual {v3, v4}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-              invoke-virtual {v3, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-              invoke-virtual {v3}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-              move-result-object v3
-
-              const-string v4, "GET"
-
-              const/4 v0, 0x0
-
-              invoke-static {v3, v4, v0}, Lcom/rencia/integration/RenciaIntegration;->request(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-
-              move-result-object v3
-
-              if-eqz v3, :lumi_done
-
-              invoke-static {p0, v3}, Lcom/rencia/integration/RenciaIntegration;->saveConfig(Landroid/content/Context;Ljava/lang/String;)V
+              invoke-static {p0, v0}, Lcom/rencia/integration/RenciaIntegration;->saveConfig(Landroid/content/Context;Ljava/lang/String;)V
 
               :lumi_done
               return-void
-          .end method""" % NEW
+          .end method""" % PANEL
 
           POLL_NEW = """.method public static pollRemoteCommands(Landroid/content/Context;)V
               .locals 0
@@ -453,17 +401,59 @@ jobs:
                   }
               }
 
-              /** GET com app_id; se o painel disser que o MAC nao e desse app, repete sem app_id. */
+              /** GET com app_id; se o painel recusar o app_id (MAC nao e desse app / app desconhecido), repete sem app_id. */
               private static JSONObject getWithAppId(String path) {
                   if (sendAppId) {
                       JSONObject r = getJson(path + "&app_id=" + enc(appId()));
-                      if (r != null && !r.optBoolean("success", true) && r.optString("message", "").contains("vinculado")) {
-                          sendAppId = false;
-                      } else {
-                          return r;
-                      }
+                      if (r == null) return getJson(path);
+                      String why = (r.optString("message", "") + " " + r.optString("error", "")).toLowerCase(Locale.ROOT);
+                      if (r.optBoolean("success", true) && r.optString("error", "").length() == 0) return r;
+                      if (why.contains("vinculado") || why.contains("inv\u00e1lido") || why.contains("invalido")) sendAppId = false;
                   }
                   return getJson(path);
+              }
+
+              /**
+               * Configuracao do MAC no painel, no formato que RenciaIntegration.saveConfig espera.
+               * 1) rota nova /api/v5/apps/{app}/config; 2) se o painel nao conhece o app nessa rota (caso do OuroPro,
+               * que e um app antigo), usa /api/device/check + /api/v5/get_playlists, que aceitam o MAC principal e o reserva.
+               */
+              public static String configJson(Context c) {
+                  try {
+                      String m = c.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString("mac_address", "");
+                      m = m == null ? "" : m.trim();
+                      if (m.length() == 0) return null;
+                      JSONObject cfg = getJson("/api/v5/apps/" + enc(appId()) + "/config?mac=" + enc(m));
+                      if (cfg != null && cfg.optBoolean("registered", false) && cfg.has("allowed")) return cfg.toString();
+                      JSONObject dc = getJson("/api/device/check?mac=" + enc(m));
+                      if (dc == null) return cfg == null ? null : cfg.toString();
+                      boolean found = dc.optBoolean("found", false);
+                      boolean allowed = found && dc.optBoolean("allowed", false);
+                      JSONObject out = new JSONObject();
+                      out.put("registered", found);
+                      out.put("allowed", allowed);
+                      out.put("status", dc.optString("status", ""));
+                      out.put("mac_address", m);
+                      out.put("active_list_number", 1);
+                      JSONArray urls = new JSONArray();
+                      if (allowed) {
+                          JSONObject pl = getJson("/api/v5/get_playlists?mac=" + enc(m));
+                          JSONArray arr = pl == null ? null : pl.optJSONArray("playlists");
+                          if (arr != null) {
+                              for (int i = 0; i < arr.length(); i++) {
+                                  JSONObject o = arr.optJSONObject(i);
+                                  String u = o == null ? "" : o.optString("playlist_url", "");
+                                  if (u.length() > 0) urls.put(u);
+                              }
+                          }
+                          String own = dc.optString("urlM3u8", "");
+                          if (urls.length() == 0 && own.length() > 0 && !"null".equals(own)) urls.put(own);
+                      }
+                      out.put("playlist_urls", urls);
+                      return out.toString();
+                  } catch (Throwable t) {
+                      return null;
+                  }
               }
 
               private static String read(InputStream in) throws Exception {
