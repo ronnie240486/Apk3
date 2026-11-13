@@ -66,7 +66,7 @@ jobs:
           cat > patch_lumi.py <<'PYEOF'
           """Patches de smali do LUMI 3.9 (camada com.rencia.integration).
           Uso: python3 patch_lumi.py <pasta_smali> <arquivo_de_relatorio>
-          Roda sobre a pasta gerada pelo baksmali do dex que tem com/rencia/integration/RenciaIntegration.
+          Roda sobre a pasta gerada pelo baksmali de cada dex que define com/rencia/integration/RenciaIntegration ou com/flextv/livestore/MainActivity.
           Cada patch aplicado e anotado no relatorio; o workflow confere no fim que todos entraram."""
           import glob
           import os
@@ -179,6 +179,25 @@ jobs:
               return m.start(), m.end()
 
 
+          def patch_main(root, report):
+              """MainActivity.checkAppInfoModel(): todo caminho de abertura do app passa por aqui.
+              O LumiPanel poe a lista do painel (e validade longa) no modelo quando o MAC esta liberado."""
+              path = os.path.join(root, "com", "flextv", "livestore", "MainActivity.smali")
+              t = read(path)
+              a, b = method_span(t, r"checkAppInfoModel\(Lcom/flextv/livestore/models/AppInfoModel;\)V")
+              body = t[a:b]
+              assert "preencher" not in body
+              m = re.search(r"^\s*\.(?:registers|locals)\s+\d+\s*$", body, re.M)
+              assert m, "diretiva de registradores de checkAppInfoModel nao encontrada"
+              n = int(re.search(r"\d+", m.group(0)).group(0))
+              total = n if "registers" in m.group(0) else n + 2  # .locals + this + 1 parametro
+              assert total <= 16, "checkAppInfoModel usa registradores demais para o gancho (%d)" % total
+              hook = "\n\n    invoke-static {p0, p1}, %s->preencher(Landroid/content/Context;Ljava/lang/Object;)V\n" % PANEL
+              body = body[:m.end()] + hook + body[m.end():]
+              write(path, t[:a] + body + t[b:])
+              report.add("entrada_mac")
+
+
           def patch(root, report):
               base = os.path.join(root, "com", "rencia", "integration")
               main = os.path.join(base, "RenciaIntegration.smali")
@@ -258,8 +277,14 @@ jobs:
           def main():
               root, out = sys.argv[1], sys.argv[2]
               report = set()
-              patch(root, report)
-              lint(root)
+              has_layer = os.path.isfile(os.path.join(root, "com", "rencia", "integration", "RenciaIntegration.smali"))
+              has_main = os.path.isfile(os.path.join(root, "com", "flextv", "livestore", "MainActivity.smali"))
+              assert has_layer or has_main, "este dex nao define RenciaIntegration nem MainActivity"
+              if has_layer:
+                  patch(root, report)
+                  lint(root)
+              if has_main:
+                  patch_main(root, report)
               with open(out, "a") as f:
                   for item in sorted(report):
                       f.write(item + "\n")
@@ -501,7 +526,9 @@ jobs:
               private static volatile WeakReference<Activity> openedFor = new WeakReference<Activity>(null);
               private static volatile long openedAt;
 
-              /** Na tela de login (so MAC): confere o painel a cada ciclo e, assim que o MAC for liberado, entra sem apertar nada. */
+              private static volatile int openTries;
+
+              /** Na tela de login (so MAC): confere o painel a cada ciclo e, assim que o MAC for liberado, reabre o app ja com a lista do painel. */
               private static void watchLogin() {
                   try {
                       final Activity a = top.get();
@@ -512,13 +539,114 @@ jobs:
                       ri.getMethod("sync", Context.class).invoke(null, a);
                       Object ok = ri.getMethod("isAllowed", Context.class).invoke(null, a);
                       if (!(ok instanceof Boolean) || !((Boolean) ok).booleanValue()) return;
+                      if (listaDoPainel(a).length() == 0 || openTries >= 4) return;
                       openedFor = new WeakReference<Activity>(a);
                       openedAt = now;
-                      final Runnable login = (Runnable) Class.forName("com.rencia.integration.RenciaIntegration$AutoLogin")
-                              .getConstructor(Activity.class).newInstance(a);
-                      a.runOnUiThread(login);
+                      openTries++;
+                      a.runOnUiThread(new Runnable() {
+                          @Override public void run() {
+                              try {
+                                  Intent i = new Intent(a, Class.forName("com.flextv.livestore.MainActivity"));
+                                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                  a.startActivity(i);
+                                  a.finish();
+                              } catch (Throwable ignored) {
+                              }
+                          }
+                      });
                   } catch (Throwable ignored) {
                   }
+              }
+
+              // ------------------------------------------------------------------ lista do painel dentro do app (entrada so por MAC)
+
+              private static JSONArray listaDoPainel(Context c) {
+                  try {
+                      SharedPreferences p = c.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+                      String raw = p.getString("rencia_playlist_urls", "");
+                      if (raw == null || raw.trim().length() == 0) return new JSONArray();
+                      JSONArray in = new JSONArray(raw);
+                      JSONArray out = new JSONArray();
+                      for (int i = 0; i < in.length(); i++) {
+                          Object o = in.get(i);
+                          String u = o instanceof JSONObject ? ((JSONObject) o).optString("url", "") : String.valueOf(o);
+                          u = normalizar(u == null ? "" : u.trim());
+                          if (u.length() > 0) out.put(u);
+                      }
+                      return out;
+                  } catch (Throwable t) {
+                      return new JSONArray();
+                  }
+              }
+
+              /** O LUMI le usuario e senha como 1o e 2o parametros da URL (get.php?username=..&password=..): reescreve nesse formato. */
+              private static String normalizar(String u) {
+                  try {
+                      if (u.length() == 0 || !u.contains("username=") || !u.contains("password=")) return u;
+                      android.net.Uri uri = android.net.Uri.parse(u);
+                      String user = uri.getQueryParameter("username");
+                      String pass = uri.getQueryParameter("password");
+                      if (user == null || pass == null || uri.getScheme() == null || uri.getAuthority() == null) return u;
+                      String path = uri.getPath();
+                      if (path == null || path.length() == 0 || path.equals("/")) path = "/get.php";
+                      String rest;
+                      java.util.Set<String> all = uri.getQueryParameterNames();
+                      StringBuilder sb = new StringBuilder();
+                      for (String k : all) {
+                          if (k.equals("username") || k.equals("password")) continue;
+                          sb.append('&').append(k).append('=').append(uri.getQueryParameter(k));
+                      }
+                      rest = sb.toString();
+                      return uri.getScheme() + "://" + uri.getAuthority() + path + "?username=" + user + "&password=" + pass + rest;
+                  } catch (Throwable t) {
+                      return u;
+                  }
+              }
+
+              /**
+               * Chamado no comeco de MainActivity.checkAppInfoModel (todo caminho de abertura do app passa por la).
+               * Se o painel liberou este MAC, poe a lista do painel e uma validade longa no modelo do app;
+               * o resto do app segue o fluxo normal dele (carrega a lista e abre a tela inicial), sem usuario e senha.
+               */
+              public static void preencher(Context c, Object model) {
+                  try {
+                      if (c == null || model == null) return;
+                      SharedPreferences p = c.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+                      if (!p.getBoolean("rencia_registered", false) || !p.getBoolean("rencia_allowed", false)) return;
+                      JSONArray urls = listaDoPainel(c);
+                      if (urls.length() == 0) return;
+                      JSONArray lista = new JSONArray();
+                      for (int i = 0; i < urls.length(); i++) {
+                          JSONObject o = new JSONObject();
+                          o.put("id", String.valueOf(i + 1));
+                          o.put("is_protected", "0");
+                          o.put("name", "Lista " + (i + 1));
+                          o.put("type", urls.getString(i).contains("username=") ? "xtream" : "m3u");
+                          o.put("url", urls.getString(i));
+                          lista.put(o);
+                      }
+                      Class<?> gsonClass = Class.forName("com.google.gson.Gson");
+                      Object gson = gsonClass.getConstructor().newInstance();
+                      Class<?> listType = Class.forName("[Lcom.flextv.livestore.models.AppInfoModel$UrlModel;");
+                      Object arr = gsonClass.getMethod("fromJson", String.class, Class.class).invoke(gson, lista.toString(), listType);
+                      java.util.List<Object> asList = java.util.Arrays.asList((Object[]) arr);
+                      java.util.ArrayList<Object> copy = new java.util.ArrayList<Object>(asList);
+                      setField(model, "result", copy);
+                      setField(model, "expiredDate", "2099-12-31");
+                      setField(model, "success", Boolean.TRUE);
+                      String m = p.getString("mac_address", "");
+                      if (m != null && m.length() > 0) setField(model, "mac_address", m);
+                      // guarda no app tambem (trocar de lista e outras telas leem daqui)
+                      String json = (String) gsonClass.getMethod("toJson", Object.class).invoke(gson, model);
+                      p.edit().putString("APP_INFO_MODEL", json).apply();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static void setField(Object o, String name, Object value) throws Exception {
+                  Field f = o.getClass().getDeclaredField(name);
+                  f.setAccessible(true);
+                  f.set(o, value);
               }
 
               private static void sendHeartbeat(String content) {
@@ -743,12 +871,13 @@ jobs:
           CHANGED=""
           for F in work/dex/classes*.dex; do
             NAME=$(basename "$F")
-            if grep -aq "Lcom/rencia/integration/RenciaIntegration;" "$F"; then
+            if grep -aq -e "Lcom/rencia/integration/RenciaIntegration;" -e "Lcom/flextv/livestore/MainActivity;" "$F"; then
               echo "== $NAME"
               baksmali d "$F" -o "work/smali_$NAME"
-              # varios dex citam a classe (so chamam); so mexe naquele que a define
-              if [ ! -f "work/smali_$NAME/com/rencia/integration/RenciaIntegration.smali" ]; then
-                echo "$NAME so cita a camada, nao precisa mudar"
+              # varios dex citam as classes (so chamam); so mexe naquele que define RenciaIntegration ou MainActivity
+              if [ ! -f "work/smali_$NAME/com/rencia/integration/RenciaIntegration.smali" ] && [ ! -f "work/smali_$NAME/com/flextv/livestore/MainActivity.smali" ]; then
+                echo "$NAME so cita as classes, nao precisa mudar"
+                rm -rf "work/smali_$NAME"
                 continue
               fi
               python3 -I patch_lumi.py "work/smali_$NAME" work/applied.txt
@@ -759,10 +888,10 @@ jobs:
               CHANGED="$CHANGED $NAME"
             fi
           done
-          test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration"; exit 1; }
+          test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration / MainActivity"; exit 1; }
           sort -u work/applied.txt > work/applied_u.txt
           echo "Patches aplicados:"; cat work/applied_u.txt
-          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_ouropro; do
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_ouropro entrada_mac; do
             grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
           done
 
@@ -809,6 +938,7 @@ jobs:
           assert b"/api/v5/heartbeat" in dex and b"/api/v5/list-notifications" in dex and b"/api/v5/remote-commands" in dex, "Rotas do painel ausentes"
           bridge = [n for n, r in raws.items() if b"Lcom/rencia/integration/RenciaIntegration;" in r]
           assert bridge, "Camada com.rencia.integration ausente"
+          assert any(b"preencher" in r and b"Lcom/flextv/livestore/MainActivity;" in r and b"checkAppInfoModel" in r for r in raws.values()), "Gancho de entrada por MAC ausente"
           assert "AndroidManifest.xml" in names and "resources.arsc" in names
           print("OK: Railway primeiro, Manus de reserva, __idle__, avisos e comandos (painel em", holders, "| camada em", bridge, ")")
           PYEOF
