@@ -5,6 +5,7 @@ name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
 #  - heartbeat a cada 60 s (e na hora que muda o que esta tocando) com "Assistindo": TV ao vivo, filme, serie ou reprise;
 #    manda "__idle__" quando nada toca (o painel apaga o "Assistindo")
 #  - avisos do painel e aviso de vencimento aparecem na tela, com confirmacao (ack)
+#  - tela de MAC: sem "usuario e senha"; confere o painel sozinha e abre assim que o MAC for liberado
 #  - comandos remotos: exibir aviso e reiniciar/atualizar (o antigo "consultava" os comandos e perdia todos)
 # Roda sozinho quando este arquivo e enviado. O APK sai em Actions > (execucao) > Artifacts.
 on:
@@ -74,6 +75,7 @@ jobs:
           OLD = "https://renciaapp.manus.space"
           NEW = "https://renciaapp-production.up.railway.app"
           PANEL = "Lcom/rencia/integration/LumiPanel;"
+          NOTICE_NEW = '"MAC n\\u00e3o autorizado. Envie o MAC da tela ao seu revendedor; o app abre sozinho quando for liberado."'
 
           REQUEST_NEW = """.method public static request(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
               .locals 1
@@ -220,6 +222,15 @@ jobs:
               report.add("gancho_start")
 
               write(main, t)
+
+              # 6) aviso da tela de MAC: o app so entra por MAC, nao existe usuario e senha
+              notice = os.path.join(base, "RenciaIntegration$AccessNotice.smali")
+              assert os.path.isfile(notice), "AccessNotice.smali nao encontrado"
+              nt = read(notice)
+              nt, k = re.subn(r'"MAC n[^"\n]*?autorizado ou expirado\.[^"\n]*"', lambda m: NOTICE_NEW, nt)
+              assert k >= 1, "texto do aviso do MAC nao encontrado"
+              write(notice, nt)
+              report.add("aviso_mac")
 
 
           def lint(root):
@@ -463,6 +474,7 @@ jobs:
               private static void tick() {
                   try {
                       if (mac().length() == 0) return;
+                      watchLogin();
                       String content = currentContent();
                       long now = System.currentTimeMillis();
                       boolean cycleDue = now - lastCycleAt >= 60000L;
@@ -473,6 +485,31 @@ jobs:
                           lastCycleAt = now;
                           handleNotifications();
                       }
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              // ------------------------------------------------------------------ tela de MAC: abre sozinha quando liberar
+
+              private static volatile WeakReference<Activity> openedFor = new WeakReference<Activity>(null);
+              private static volatile long openedAt;
+
+              /** Na tela de login (so MAC): confere o painel a cada ciclo e, assim que o MAC for liberado, entra sem apertar nada. */
+              private static void watchLogin() {
+                  try {
+                      final Activity a = top.get();
+                      if (a == null || a.isFinishing() || !a.getClass().getName().endsWith(".LoginActivity")) return;
+                      long now = System.currentTimeMillis();
+                      if (openedFor.get() == a && now - openedAt < 30000L) return;
+                      Class<?> ri = Class.forName("com.rencia.integration.RenciaIntegration");
+                      ri.getMethod("sync", Context.class).invoke(null, a);
+                      Object ok = ri.getMethod("isAllowed", Context.class).invoke(null, a);
+                      if (!(ok instanceof Boolean) || !((Boolean) ok).booleanValue()) return;
+                      openedFor = new WeakReference<Activity>(a);
+                      openedAt = now;
+                      final Runnable login = (Runnable) Class.forName("com.rencia.integration.RenciaIntegration$AutoLogin")
+                              .getConstructor(Activity.class).newInstance(a);
+                      a.runOnUiThread(login);
                   } catch (Throwable ignored) {
                   }
               }
@@ -718,7 +755,7 @@ jobs:
           test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration"; exit 1; }
           sort -u work/applied.txt > work/applied_u.txt
           echo "Patches aplicados:"; cat work/applied_u.txt
-          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start; do
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac; do
             grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
           done
 
