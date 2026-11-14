@@ -5,7 +5,7 @@ name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
 #  - heartbeat a cada 60 s (e na hora que muda o que esta tocando) com "Assistindo": TV ao vivo, filme, serie ou reprise;
 #    manda "__idle__" quando nada toca (o painel apaga o "Assistindo")
 #  - avisos do painel e aviso de vencimento aparecem na tela, com confirmacao (ack)
-#  - o app consulta o painel como "ouropro" (antes era "nexus")
+#  - o app consulta o painel como "furious" (antes era "nexus")
 #  - tela de MAC: sem "usuario e senha"; confere o painel sozinha e abre assim que o MAC for liberado
 #  - visual Furious: o logo LUMI (icone do app, logo da tela inicial/MAC e banner) vira o icone Furious e o fundo da tela de login
 #    vira o fundo Furious. As 3 imagens ficam em build/furious/ (icone.png, banner.png, fundo.jpg)
@@ -195,10 +195,10 @@ jobs:
               report.add("gancho_start")
 
               # appId padrao: OuroPro (a preferencia rencia_app_id, se existir, continua valendo)
-              t, k = re.subn(r'(const-string v\d+, )"nexus"', r'\1"ouropro"', t)
+              t, k = re.subn(r'(const-string v\d+, )"nexus"', r'\1"furious"', t)
               assert k >= 1, "appId padrao nexus nao encontrado"
               assert '"nexus"' not in t
-              report.add("app_ouropro")
+              report.add("app_furious")
 
               write(main, t)
 
@@ -492,8 +492,8 @@ jobs:
 
               private static String appId() {
                   SharedPreferences p = pref();
-                  String id = p == null ? "ouropro" : p.getString("rencia_app_id", "ouropro");
-                  return id == null || id.length() == 0 ? "ouropro" : id;
+                  String id = p == null ? "furious" : p.getString("rencia_app_id", "furious");
+                  return id == null || id.length() == 0 ? "furious" : id;
               }
 
               // ------------------------------------------------------------------ ciclo
@@ -886,7 +886,7 @@ jobs:
           test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration / MainActivity"; exit 1; }
           sort -u work/applied.txt > work/applied_u.txt
           echo "Patches aplicados:"; cat work/applied_u.txt
-          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_ouropro entrada_mac; do
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_furious entrada_mac; do
             grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
           done
 
