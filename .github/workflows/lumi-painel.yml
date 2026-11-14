@@ -7,6 +7,8 @@ name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
 #  - avisos do painel e aviso de vencimento aparecem na tela, com confirmacao (ack)
 #  - o app consulta o painel como "ouropro" (antes era "nexus")
 #  - tela de MAC: sem "usuario e senha"; confere o painel sozinha e abre assim que o MAC for liberado
+#  - visual Furious: o logo LUMI (icone do app, logo da tela inicial/MAC e banner) vira o icone Furious e o fundo da tela de login
+#    vira o fundo Furious. As 3 imagens ficam em build/furious/ (icone.png, banner.png, fundo.jpg)
 #  - comandos remotos: exibir aviso e reiniciar/atualizar (o antigo "consultava" os comandos e perdia todos)
 # Roda sozinho quando este arquivo e enviado. O APK sai em Actions > (execucao) > Artifacts.
 on:
@@ -29,6 +31,9 @@ jobs:
         with:
           sparse-checkout: |
             ${{ inputs.apk || 'build/LUMI3.9-rencia.apk' }}
+            build/furious/icone.png
+            build/furious/banner.png
+            build/furious/fundo.jpg
           sparse-checkout-cone-mode: false
 
       - name: Instalar ferramentas (smali/baksmali e zip)
@@ -897,10 +902,28 @@ jobs:
           CHANGED="$CHANGED $NEWDEX"
           echo "Dex novo do painel: $NEWDEX"
 
+          # 2b) visual Furious: troca todas as imagens com o logo LUMI e o fundo da tela de login
+          for IMG in icone.png banner.png fundo.jpg; do
+            test -s "build/furious/$IMG" || { echo "ERRO: falta build/furious/$IMG no repositorio (envie as 3 imagens: icone.png, banner.png, fundo.jpg)"; exit 1; }
+          done
+          mkdir -p work/img/res/drawable work/img/res/drawable-xhdpi-v4 \
+                   work/img/res/mipmap-mdpi-v4 work/img/res/mipmap-hdpi-v4 work/img/res/mipmap-xhdpi-v4 work/img/res/mipmap-xxhdpi-v4 work/img/res/mipmap-xxxhdpi-v4
+          cp build/furious/icone.png work/img/res/drawable/launcher_logo.png
+          cp build/furious/icone.png work/img/res/drawable/home_logo.png
+          for D in mdpi hdpi xhdpi xxhdpi xxxhdpi; do cp build/furious/icone.png "work/img/res/mipmap-$D-v4/ic_launcher.png"; done
+          cp build/furious/banner.png work/img/res/drawable/banner.png
+          cp build/furious/banner.png work/img/res/drawable-xhdpi-v4/banner.png
+          cp build/furious/fundo.jpg work/img/res/drawable/background1.jpg
+          IMGS=$(cd work/img && find res -type f | sort)
+          APKLIST=$(unzip -Z1 "$APK")
+          for P in $IMGS; do grep -qxF "$P" <<<"$APKLIST" || { echo "ERRO: $P nao existe no APK de origem"; exit 1; }; done
+          echo "Imagens trocadas:"; echo "$IMGS"
+
           # 3) monta o APK
           cp "$APK" work/unsigned.apk
           zip -q -d work/unsigned.apk 'META-INF/*' || true
           (cd work/new && zip -q ../unsigned.apk $CHANGED)
+          (cd work/img && zip -q -X ../unsigned.apk $IMGS)
           "$BT/zipalign" -p -f 4 work/unsigned.apk work/aligned.apk
           OUT="LUMI-painel.apk"
           "$BT/apksigner" sign --ks lumi.keystore --ks-key-alias lumi \
@@ -930,6 +953,12 @@ jobs:
           assert bridge, "Camada com.rencia.integration ausente"
           assert any(b"preencher" in r and b"Lcom/flextv/livestore/MainActivity;" in r and b"checkAppInfoModel" in r for r in raws.values()), "Gancho de entrada por MAC ausente"
           assert "AndroidManifest.xml" in names and "resources.arsc" in names
+          import hashlib
+          def h(p): return hashlib.md5(open(p, "rb").read()).hexdigest()
+          for src, dst in [("icone.png", "res/drawable/launcher_logo.png"), ("icone.png", "res/drawable/home_logo.png"),
+                           ("icone.png", "res/mipmap-xxxhdpi-v4/ic_launcher.png"), ("banner.png", "res/drawable/banner.png"),
+                           ("fundo.jpg", "res/drawable/background1.jpg")]:
+              assert hashlib.md5(z.read(dst)).hexdigest() == h("build/furious/" + src), "Imagem Furious nao entrou em " + dst
           print("OK: Railway primeiro, Manus de reserva, __idle__, avisos e comandos (painel em", holders, "| camada em", bridge, ")")
           PYEOF
           sha256sum "$OUT"
