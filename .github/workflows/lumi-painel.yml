@@ -1,4 +1,4 @@
-name: LUMI 3.9 - painel Railway, Assistindo, avisos e comandos
+name: Furious (base LUMI 3.9) - painel Railway, Assistindo, avisos e comandos
 
 # Corrige o APK pronto do LUMI 3.9 (build/LUMI3.9-rencia.apk) SEM reconstruir o app inteiro:
 #  - painel: Railway no lugar do Manus (o Manus fica so como reserva se o Railway nao responder)
@@ -861,6 +861,72 @@ jobs:
           }
           JEOF
 
+          cat > patch_arsc.py <<'AEOF'
+          """Troca um texto do pool global de strings do resources.arsc (ex.: o nome do app "LUMI" -> "Furious").
+          Uso: python3 patch_arsc.py entrada.arsc saida.arsc LUMI Furious"""
+          import struct
+          import sys
+
+
+          def read_utf8_len(d, p):
+              n = d[p]
+              p += 1
+              if n & 0x80:
+                  n = ((n & 0x7F) << 8) | d[p]
+                  p += 1
+              return n, p
+
+
+          def enc_len(n):
+              return bytes([n]) if n < 0x80 else bytes([0x80 | (n >> 8), n & 0xFF])
+
+
+          def main(src, dst, old, new):
+              d = open(src, "rb").read()
+              t, hs, total = struct.unpack("<HHI", d[:8])
+              assert t == 0x0002 and total == len(d), "resources.arsc invalido"
+              o = hs
+              t, hs2, size2, sc, stc, fl, ss, sts = struct.unpack("<HHIIIIII", d[o:o + 28])
+              assert t == 0x0001, "pool global de strings nao encontrado"
+              assert fl & 0x100, "pool nao e UTF-8"
+              assert stc == 0, "pool com estilos nao suportado"
+              offs = struct.unpack("<%dI" % sc, d[o + hs2:o + hs2 + 4 * sc])
+              entries, texts = [], []
+              for off in offs:
+                  p = o + ss + off
+                  n, q = read_utf8_len(d, p)
+                  bl, q = read_utf8_len(d, q)
+                  entries.append(d[q:q + bl])
+              old_b, new_b = old.encode("utf-8"), new.encode("utf-8")
+              hits = [i for i, e in enumerate(entries) if e == old_b]
+              assert hits, "texto %r nao encontrado no pool" % old
+              for i in hits:
+                  entries[i] = new_b
+              blob = bytearray()
+              new_offs = []
+              for e in entries:
+                  new_offs.append(len(blob))
+                  try:
+                      chars = len(e.decode("utf-8"))
+                  except UnicodeDecodeError:
+                      raise SystemExit("string invalida no pool")
+                  blob += enc_len(chars) + enc_len(len(e)) + e + b"\x00"
+              while len(blob) % 4:
+                  blob += b"\x00"
+              new_ss = hs2 + 4 * sc
+              pool_size = new_ss + len(blob)
+              pool = struct.pack("<HHIIIIII", 0x0001, hs2, pool_size, sc, 0, fl, new_ss, 0)
+              pool += struct.pack("<%dI" % sc, *new_offs) + bytes(blob)
+              out = bytearray(d[:o]) + pool + d[o + size2:]
+              struct.pack_into("<I", out, 4, len(out))
+              open(dst, "wb").write(bytes(out))
+              print("pool: %d textos trocados (%s -> %s); arsc %d -> %d bytes" % (len(hits), old, new, len(d), len(out)))
+
+
+          if __name__ == "__main__":
+              main(*sys.argv[1:5])
+          AEOF
+
           # 1) smali: so o dex que tem a camada com.rencia.integration
           : > work/applied.txt
           CHANGED=""
@@ -919,13 +985,19 @@ jobs:
           for P in $IMGS; do grep -qxF "$P" <<<"$APKLIST" || { echo "ERRO: $P nao existe no APK de origem"; exit 1; }; done
           echo "Imagens trocadas:"; echo "$IMGS"
 
+          # 2c) nome do app (o que aparece embaixo do icone): LUMI -> Furious, no pool de strings do resources.arsc
+          (cd work/img && unzip -q -o "../../$APK" resources.arsc)
+          python3 -I patch_arsc.py work/img/resources.arsc work/img/resources_novo.arsc LUMI Furious
+          mv -f work/img/resources_novo.arsc work/img/resources.arsc
+
           # 3) monta o APK
           cp "$APK" work/unsigned.apk
           zip -q -d work/unsigned.apk 'META-INF/*' || true
           (cd work/new && zip -q ../unsigned.apk $CHANGED)
           (cd work/img && zip -q -X ../unsigned.apk $IMGS)
+          (cd work/img && zip -q -X -0 ../unsigned.apk resources.arsc)
           "$BT/zipalign" -p -f 4 work/unsigned.apk work/aligned.apk
-          OUT="LUMI-painel.apk"
+          OUT="Furious.apk"
           "$BT/apksigner" sign --ks lumi.keystore --ks-key-alias lumi \
             --ks-pass pass:lumi-test-key --key-pass pass:lumi-test-key \
             --out "$OUT" work/aligned.apk
@@ -936,7 +1008,7 @@ jobs:
           # conferencia final dentro do APK pronto
           python3 -I - <<'PYEOF'
           import zipfile
-          z = zipfile.ZipFile("LUMI-painel.apk")
+          z = zipfile.ZipFile("Furious.apk")
           names = z.namelist()
           dexnames = [n for n in names if n.startswith("classes") and n.endswith(".dex")]
           raws = {n: z.read(n) for n in dexnames}
@@ -953,6 +1025,10 @@ jobs:
           assert bridge, "Camada com.rencia.integration ausente"
           assert any(b"preencher" in r and b"Lcom/flextv/livestore/MainActivity;" in r and b"checkAppInfoModel" in r for r in raws.values()), "Gancho de entrada por MAC ausente"
           assert "AndroidManifest.xml" in names and "resources.arsc" in names
+          arsc = z.read("resources.arsc")
+          assert b"\x07\x07Furious\x00" in arsc, "Nome Furious nao entrou no resources.arsc"
+          assert b"\x04\x04LUMI\x00" not in arsc, "Ainda existe o nome LUMI no resources.arsc"
+          assert z.getinfo("resources.arsc").compress_type == zipfile.ZIP_STORED, "resources.arsc precisa ficar sem compressao"
           import hashlib
           def h(p): return hashlib.md5(open(p, "rb").read()).hexdigest()
           for src, dst in [("icone.png", "res/drawable/launcher_logo.png"), ("icone.png", "res/drawable/home_logo.png"),
@@ -966,5 +1042,5 @@ jobs:
       - name: Guardar o APK ajustado
         uses: actions/upload-artifact@v4
         with:
-          name: LUMI-painel
-          path: LUMI-painel.apk
+          name: Furious-APK
+          path: Furious.apk
