@@ -147,8 +147,13 @@ jobs:
               assert total <= 16, "checkAppInfoModel usa registradores demais para o gancho (%d)" % total
               hook = "\n\n    invoke-static {p0, p1}, %s->preencher(Landroid/content/Context;Ljava/lang/Object;)V\n" % PANEL
               body = body[:m.end()] + hook + body[m.end():]
-              write(path, t[:a] + body + t[b:])
+              t = t[:a] + body + t[b:]
+              # checkAn(): o app compara o nome (string app_name) com "LUMI" e fecha sozinho se for outro -> com o nome Furious ele abria e fechava
+              a, b = method_span(t, r"checkAn\(\)V")
+              t = t[:a] + ".method public checkAn()V\n    .locals 0\n\n    return-void\n.end method" + t[b:]
+              write(path, t)
               report.add("entrada_mac")
+              report.add("sem_checkan")
 
 
           def patch(root, report):
@@ -891,26 +896,24 @@ jobs:
               assert fl & 0x100, "pool nao e UTF-8"
               assert stc == 0, "pool com estilos nao suportado"
               offs = struct.unpack("<%dI" % sc, d[o + hs2:o + hs2 + 4 * sc])
-              entries, texts = [], []
+              old_b, new_b = old.encode("utf-8"), new.encode("utf-8")
+              entries = []
               for off in offs:
                   p = o + ss + off
                   n, q = read_utf8_len(d, p)
                   bl, q = read_utf8_len(d, q)
-                  entries.append(d[q:q + bl])
-              old_b, new_b = old.encode("utf-8"), new.encode("utf-8")
-              hits = [i for i, e in enumerate(entries) if e == old_b]
+                  entries.append(d[p:q + bl + 1])  # bytes originais da entrada (tamanhos + texto + 0)
+              old_raw = enc_len(len(old_b.decode("utf-8"))) + enc_len(len(old_b)) + old_b + b"\x00"
+              new_raw = enc_len(len(new_b.decode("utf-8"))) + enc_len(len(new_b)) + new_b + b"\x00"
+              hits = [i for i, e in enumerate(entries) if e == old_raw]
               assert hits, "texto %r nao encontrado no pool" % old
               for i in hits:
-                  entries[i] = new_b
+                  entries[i] = new_raw
               blob = bytearray()
               new_offs = []
               for e in entries:
                   new_offs.append(len(blob))
-                  try:
-                      chars = len(e.decode("utf-8"))
-                  except UnicodeDecodeError:
-                      raise SystemExit("string invalida no pool")
-                  blob += enc_len(chars) + enc_len(len(e)) + e + b"\x00"
+                  blob += e
               while len(blob) % 4:
                   blob += b"\x00"
               new_ss = hs2 + 4 * sc
@@ -952,7 +955,7 @@ jobs:
           test -n "$CHANGED" || { echo "Nenhum dex com a camada com.rencia.integration / MainActivity"; exit 1; }
           sort -u work/applied.txt > work/applied_u.txt
           echo "Patches aplicados:"; cat work/applied_u.txt
-          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_furious entrada_mac; do
+          for P in painel_railway reserva_manus sem_poll_antigo sem_heartbeat_antigo gancho_start aviso_mac app_furious entrada_mac sem_checkan; do
             grep -qx "$P" work/applied_u.txt || { echo "ERRO: patch '$P' nao foi aplicado"; exit 1; }
           done
 
